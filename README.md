@@ -2,55 +2,38 @@
 
 Built by Grain is an ecommerce platform for selling handcrafted wooden products in Germany.
 
-This project is being developed as an AI-assisted software engineering project using ChatGPT/Codex.
-
-## Goals
-
-- Modern ecommerce experience
-- Secure online payments
-- Order management
-- Shipment tracking
-- Admin dashboard
-- Responsive design
-- Production-ready architecture
-
-## Tech Stack
-
-### Frontend
-- Angular
-- TypeScript
-
-### Backend
-- Java
-- Spring Boot
-
-### Database
-- PostgreSQL
-
-### Infrastructure
-- Podman
-- GitHub
-- VS Code
+This repository is a monorepo. It will contain an Angular frontend, a Spring Boot backend, documentation, infrastructure files, and helper scripts.
 
 ## Project Structure
 
 ```
 apps/
-frontend/
-backend/
-
-docs/
-infra/
+  frontend/   # Future Angular application
+  backend/    # Future Spring Boot application
+docs/         # Project documentation
+infra/        # Future Podman and deployment files
+scripts/      # Future developer scripts
 ```
-## Development Philosophy
 
-- AI-assisted development
-- Small, reviewable commits
-- Clean Architecture
-- Test-driven where practical
-- Documentation first
-- Production quality over speed
+## Current Status
 
-## Development Status
+Initial repository structure only.
 
-🚧 Project setup in progress.
+No Angular app, Spring Boot app, payment integration, or DHL integration has been generated yet.
+
+## Planned Stack
+
+- Frontend: Angular and TypeScript
+- Backend: Java and Spring Boot
+- Database: PostgreSQL
+- Containers: Podman
+- Payments: Stripe, later
+- Shipping: DHL tracking, later
+
+## Development Approach
+
+- Keep changes small and reviewable.
+- Document decisions before implementation.
+- Prefer simple architecture until the product needs more.
+- Build REST APIs with clear contracts.
+- Keep frontend and backend separate inside the monorepo.

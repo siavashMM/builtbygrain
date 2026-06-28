@@ -1,0 +1,38 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Node and Angular
+node_modules/
+dist/
+.angular/
+.npm/
+
+# Java and Spring Boot
+target/
+build/
+.gradle/
+*.class
+
+# Test and coverage output
+coverage/
+test-results/
+
+# Local container and database data
+.podman/
+data/
