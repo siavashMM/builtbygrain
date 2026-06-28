@@ -8,7 +8,7 @@ This repository is a monorepo. It will contain an Angular frontend, a Spring Boo
 
 ```
 apps/
-  frontend/   # Future Angular application
+  frontend/   # Angular frontend application
   backend/    # Spring Boot backend application
 docs/         # Project documentation
 infra/        # Future Podman and deployment files
@@ -17,9 +17,9 @@ scripts/      # Future developer scripts
 
 ## Current Status
 
-Initial repository structure with a Spring Boot backend scaffold.
+Initial repository structure with Angular frontend and Spring Boot backend scaffolds.
 
-No Angular app, payment integration, DHL integration, or database connection has been generated yet.
+No payment integration, DHL integration, or database connection has been generated yet.
 
 ## Planned Stack
 
@@ -52,3 +52,13 @@ Health check:
 ```bash
 curl http://localhost:8080/api/health
 ```
+
+## Frontend Quick Start
+
+```bash
+cd apps/frontend
+npm install
+npm start
+```
+
+The frontend runs on `http://localhost:4200` and proxies `/api` requests to the backend on `http://localhost:8080`.
