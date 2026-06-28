@@ -42,6 +42,14 @@ backend/
 docs/
 infra/
 ```
+## Development Philosophy
+
+- AI-assisted development
+- Small, reviewable commits
+- Clean Architecture
+- Test-driven where practical
+- Documentation first
+- Production quality over speed
 
 ## Development Status
 
