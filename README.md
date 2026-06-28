@@ -9,7 +9,7 @@ This repository is a monorepo. It will contain an Angular frontend, a Spring Boo
 ```
 apps/
   frontend/   # Future Angular application
-  backend/    # Future Spring Boot application
+  backend/    # Spring Boot backend application
 docs/         # Project documentation
 infra/        # Future Podman and deployment files
 scripts/      # Future developer scripts
@@ -17,9 +17,9 @@ scripts/      # Future developer scripts
 
 ## Current Status
 
-Initial repository structure only.
+Initial repository structure with a Spring Boot backend scaffold.
 
-No Angular app, Spring Boot app, payment integration, or DHL integration has been generated yet.
+No Angular app, payment integration, DHL integration, or database connection has been generated yet.
 
 ## Planned Stack
 
@@ -37,3 +37,18 @@ No Angular app, Spring Boot app, payment integration, or DHL integration has bee
 - Prefer simple architecture until the product needs more.
 - Build REST APIs with clear contracts.
 - Keep frontend and backend separate inside the monorepo.
+
+## Backend Quick Start
+
+Java 21 should be active on `PATH` or through `JAVA_HOME`. Maven is provided by the backend Maven Wrapper.
+
+```bash
+cd apps/backend
+./mvnw spring-boot:run
+```
+
+Health check:
+
+```bash
+curl http://localhost:8080/api/health
+```
