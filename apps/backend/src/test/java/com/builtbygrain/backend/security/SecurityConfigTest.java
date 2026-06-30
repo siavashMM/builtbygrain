@@ -3,6 +3,7 @@ package com.builtbygrain.backend.security;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,10 +14,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class SecurityConfigTest {
 
     @Autowired
@@ -31,14 +35,14 @@ class SecurityConfigTest {
 
     @Test
     void publicProductEndpointIsPublic() throws Exception {
-        mockMvc.perform(get("/api/public/products/test"))
+        mockMvc.perform(get("/api/public/products"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.message").value("public product endpoint"));
+            .andExpect(jsonPath("$").isArray());
     }
 
     @Test
     void corsAllowsLocalFrontend() throws Exception {
-        mockMvc.perform(options("/api/public/products/test")
+        mockMvc.perform(options("/api/public/products")
                 .header(HttpHeaders.ORIGIN, "http://localhost:4200")
                 .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.GET.name()))
             .andExpect(status().isOk())
@@ -67,14 +71,34 @@ class SecurityConfigTest {
 
     @Test
     void adminProductEndpointRejectsUser() throws Exception {
-        mockMvc.perform(get("/api/admin/products/test").with(httpBasic("user", "password")))
+        mockMvc.perform(post("/api/admin/products")
+                .with(httpBasic("user", "password"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Oak Board",
+                      "description": "Handmade oak serving board",
+                      "priceCents": 4900,
+                      "currency": "EUR"
+                    }
+                    """))
             .andExpect(status().isForbidden());
     }
 
     @Test
     void adminProductEndpointAllowsAdmin() throws Exception {
-        mockMvc.perform(get("/api/admin/products/test").with(httpBasic("admin", "admin")))
+        mockMvc.perform(post("/api/admin/products")
+                .with(httpBasic("admin", "admin"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Oak Board",
+                      "description": "Handmade oak serving board",
+                      "priceCents": 4900,
+                      "currency": "EUR"
+                    }
+                    """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.message").value("admin product endpoint"));
+            .andExpect(jsonPath("$.name").value("Oak Board"));
     }
 }

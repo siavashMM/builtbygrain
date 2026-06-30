@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:16
+    container_name: builtbygrain-postgres
+    environment:
+      POSTGRES_DB: builtbygrain
+      POSTGRES_USER: builtbygrain
+      POSTGRES_PASSWORD: builtbygrain
+    ports:
+      - "5432:5432"
+    volumes:
+      - builtbygrain-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  builtbygrain-postgres-data:

@@ -21,6 +21,21 @@ Example response:
 }
 ```
 
+```http
+GET /api/public/products
+```
+
+Purpose: return active products for public shop browsing.
+
+```http
+POST /api/admin/products
+PUT /api/admin/products/{id}
+PATCH /api/admin/products/{id}/deactivate
+```
+
+Purpose: allow admins to create, update, and deactivate products.
+These endpoints require the `ADMIN` role.
+
 ## Future API Areas
 
 - Products
@@ -38,13 +53,3 @@ Example response:
 - Request and response format: JSON
 - Dates and times: ISO 8601
 - Errors: consistent JSON error responses
-
-## Example Future Endpoint
-
-```http
-GET /api/products
-```
-
-Purpose: return a list of products for the shop catalog.
-
-This is only a placeholder example and should be refined before implementation.

@@ -7,9 +7,10 @@ Spring Boot REST API for Built by Grain.
 - Java 21
 - Spring Boot
 - Maven Wrapper
+- PostgreSQL
 - REST over JSON
 
-PostgreSQL is planned, but this initial backend does not configure a database connection.
+PostgreSQL is used for local development. Flyway manages database migrations.
 
 ## Run Locally
 
@@ -18,6 +19,7 @@ Prerequisites:
 - Java 21 active on `PATH` or through `JAVA_HOME`
 
 Maven does not need to be installed globally. Use the committed Maven Wrapper.
+Start PostgreSQL first; see `../../docs/setup.md`.
 
 From the backend directory:
 

@@ -11,15 +11,15 @@ apps/
   frontend/   # Angular frontend application
   backend/    # Spring Boot backend application
 docs/         # Project documentation
-infra/        # Future Podman and deployment files
+infra/        # Local Podman and future deployment files
 scripts/      # Future developer scripts
 ```
 
 ## Current Status
 
-Initial repository structure with Angular frontend and Spring Boot backend scaffolds.
+Initial repository structure with Angular frontend, Spring Boot backend, and local PostgreSQL support.
 
-No payment integration, DHL integration, or database connection has been generated yet.
+No payment integration or DHL integration has been generated yet.
 
 ## Planned Stack
 
@@ -41,6 +41,7 @@ No payment integration, DHL integration, or database connection has been generat
 ## Backend Quick Start
 
 Java 21 should be active on `PATH` or through `JAVA_HOME`. Maven is provided by the backend Maven Wrapper.
+Start PostgreSQL first; see `docs/setup.md` for details.
 
 ```bash
 cd apps/backend

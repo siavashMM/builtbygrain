@@ -40,6 +40,6 @@ Banking and card data must never touch the Built by Grain backend. The backend s
 
 ## Admin Protection
 
-Product create, update, and delete operations must be implemented under `/api/admin/**` and require the `ADMIN` role.
+Product create, update, and deactivate operations are implemented under `/api/admin/**` and require the `ADMIN` role.
 
 Public product browsing should stay under `/api/public/**` so customers can view products without signing in.
