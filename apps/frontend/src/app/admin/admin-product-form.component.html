@@ -1,0 +1,126 @@
+<form class="admin-form" (submit)="submit($event)">
+  <div class="form-header">
+    <div>
+      <p class="eyebrow">{{ product === null ? 'Add product' : 'Edit product' }}</p>
+      <h2>{{ product === null ? 'New product' : product.name }}</h2>
+    </div>
+    <button type="button" class="secondary-button" (click)="startNewProduct()">New</button>
+  </div>
+
+  <div class="form-grid">
+    <label>
+      Name
+      <input
+        name="name"
+        type="text"
+        required
+        [value]="form().name"
+        (input)="updateField('name', $any($event.target).value)"
+      >
+    </label>
+
+    <label>
+      Slug
+      <input
+        name="slug"
+        type="text"
+        required
+        placeholder="oak-serving-board"
+        [value]="form().slug"
+        (input)="updateField('slug', $any($event.target).value)"
+      >
+    </label>
+
+    <label>
+      Price cents
+      <input
+        name="priceCents"
+        type="number"
+        min="1"
+        required
+        [value]="form().priceCents"
+        (input)="updatePriceCents($any($event.target).value)"
+      >
+    </label>
+
+    <label>
+      Currency
+      <input
+        name="currency"
+        type="text"
+        maxlength="3"
+        required
+        [value]="form().currency"
+        (input)="updateField('currency', $any($event.target).value)"
+      >
+    </label>
+
+    <label>
+      Sizes
+      <input
+        name="sizes"
+        type="text"
+        placeholder="S, M, L"
+        [value]="form().sizes"
+        (input)="updateField('sizes', $any($event.target).value)"
+      >
+    </label>
+  </div>
+
+  @if (product === null) {
+    <label class="wide-label">
+      Product photos (up to 8, 5 MB each)
+      <input
+        name="productImages"
+        type="file"
+        multiple
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        (change)="selectImages($event)"
+      >
+    </label>
+    @if (selectedImages().length > 0) {
+      <p class="state-message">{{ selectedImages().length }} photo(s) selected.</p>
+    }
+    @if (imageError()) {
+      <p class="admin-message error" role="alert">{{ imageError() }}</p>
+    }
+  }
+
+  <label class="wide-label">
+    Description
+    <textarea
+      name="description"
+      rows="4"
+      [value]="form().description"
+      (input)="updateField('description', $any($event.target).value)"
+    ></textarea>
+  </label>
+
+  <div class="toggle-row">
+    <label class="checkbox-label">
+      <input
+        name="inStock"
+        type="checkbox"
+        [checked]="form().inStock"
+        (change)="updateField('inStock', $any($event.target).checked)"
+      >
+      In stock
+    </label>
+
+    <label class="checkbox-label">
+      <input
+        name="active"
+        type="checkbox"
+        [checked]="form().active"
+        (change)="updateField('active', $any($event.target).checked)"
+      >
+      Visible in shop
+    </label>
+  </div>
+
+  <div class="admin-actions">
+    <button type="submit" [disabled]="saving">
+      {{ product === null ? 'Create product' : 'Update product' }}
+    </button>
+  </div>
+</form>

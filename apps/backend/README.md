@@ -25,8 +25,14 @@ From the backend directory:
 
 ```bash
 cd apps/backend
+export ADMIN_USERNAME=admin
+export ADMIN_PASSWORD='choose-a-strong-password'
 ./mvnw spring-boot:run
 ```
+
+The first startup stores this admin account in PostgreSQL with a hashed password.
+Later startups authenticate from the `admin_accounts` table; the environment values
+are only used to create a missing username.
 
 The API starts on `http://localhost:8080`.
 

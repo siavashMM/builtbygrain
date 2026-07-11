@@ -3,6 +3,7 @@ package com.builtbygrain.backend.shop;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.builtbygrain.backend.product.ProductResponse;
@@ -20,5 +21,10 @@ public class PublicProductsController {
     @GetMapping("/api/public/products")
     public List<ProductResponse> activeProducts() {
         return productService.getActiveProducts();
+    }
+
+    @GetMapping("/api/public/products/{slug}")
+    public ProductResponse activeProductBySlug(@PathVariable String slug) {
+        return productService.getActiveProductBySlug(slug);
     }
 }

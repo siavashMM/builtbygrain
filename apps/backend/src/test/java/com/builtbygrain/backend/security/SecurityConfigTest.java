@@ -77,12 +77,38 @@ class SecurityConfigTest {
                 .content("""
                     {
                       "name": "Oak Board",
+                      "slug": "oak-board",
                       "description": "Handmade oak serving board",
                       "priceCents": 4900,
-                      "currency": "EUR"
+                      "currency": "EUR",
+                      "active": true
                     }
                     """))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminLoginEndpointAllowsAdmin() throws Exception {
+        mockMvc.perform(post("/api/admin/auth/login")
+                .with(httpBasic("admin", "admin")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.username").value("admin"))
+            .andExpect(jsonPath("$.admin").value(true));
+    }
+
+    @Test
+    void adminLoginEndpointRejectsUser() throws Exception {
+        mockMvc.perform(post("/api/admin/auth/login")
+                .with(httpBasic("user", "password")))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void wrongAdminCredentialsDoNotTriggerBrowserLoginDialog() throws Exception {
+        mockMvc.perform(post("/api/admin/auth/login")
+                .with(httpBasic("wrong", "wrong")))
+            .andExpect(status().isUnauthorized())
+            .andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
     }
 
     @Test
@@ -93,9 +119,11 @@ class SecurityConfigTest {
                 .content("""
                     {
                       "name": "Oak Board",
+                      "slug": "oak-board",
                       "description": "Handmade oak serving board",
                       "priceCents": 4900,
-                      "currency": "EUR"
+                      "currency": "EUR",
+                      "active": true
                     }
                     """))
             .andExpect(status().isOk())

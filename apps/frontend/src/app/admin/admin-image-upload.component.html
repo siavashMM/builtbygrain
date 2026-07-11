@@ -1,0 +1,39 @@
+<section class="image-upload" aria-labelledby="image-upload-title">
+  <div class="section-heading compact">
+    <p class="eyebrow">Photos</p>
+    <h2 id="image-upload-title">Product image</h2>
+  </div>
+
+  @if (product === null) {
+    <p class="state-message">Select photos above while creating the product.</p>
+  } @else {
+    @if (product.imageUrls.length > 0) {
+      <div class="image-gallery admin-image-gallery">
+        @for (imageUrl of product.imageUrls; track imageUrl; let index = $index) {
+          <div class="gallery-item">
+            <img [src]="imageUrl" [alt]="product.name + ' photo ' + (index + 1)">
+            <button type="button" class="danger-button" (click)="removeImage.emit(index)">Remove</button>
+          </div>
+        }
+      </div>
+    }
+    <label>
+      Add photos (up to 8 total, 5 MB each)
+      <input
+        name="productImage"
+        type="file"
+        multiple
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        (change)="selectFile($event)"
+      >
+    </label>
+
+    @if (errorMessage()) {
+      <p class="admin-message error" role="alert">{{ errorMessage() }}</p>
+    }
+
+    <button type="button" [disabled]="selectedFiles().length === 0 || state() === 'uploading'" (click)="upload()">
+      {{ state() === 'uploading' ? 'Uploading...' : 'Add photos' }}
+    </button>
+  }
+</section>

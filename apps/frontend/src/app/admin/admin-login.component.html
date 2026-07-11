@@ -1,0 +1,42 @@
+<main class="admin-page-shell">
+  <section class="login-panel" aria-labelledby="admin-login-title">
+    <div class="section-heading">
+      <p class="eyebrow">Admin</p>
+      <h1 id="admin-login-title">Product management login</h1>
+    </div>
+
+    <form class="admin-form" (submit)="login($event)">
+      <label>
+        Username
+        <input
+          name="username"
+          type="text"
+          autocomplete="username"
+          required
+          [value]="username()"
+          (input)="username.set($any($event.target).value)"
+        >
+      </label>
+
+      <label>
+        Password
+        <input
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          [value]="password()"
+          (input)="password.set($any($event.target).value)"
+        >
+      </label>
+
+      @if (errorMessage()) {
+        <p class="admin-message error" role="alert">{{ errorMessage() }}</p>
+      }
+
+      <button type="submit" [disabled]="state() === 'submitting'">
+        {{ state() === 'submitting' ? 'Signing in...' : 'Sign in' }}
+      </button>
+    </form>
+  </section>
+</main>

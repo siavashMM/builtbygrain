@@ -12,9 +12,19 @@ This document captures the first security foundation for Built by Grain.
 The current backend uses HTTP Basic with temporary in-memory users:
 
 - `user` / `password` with role `USER`
-- `admin` / `admin` with roles `USER` and `ADMIN`
+- Admin users with role `ADMIN`, loaded from PostgreSQL
 
-These accounts are for local development only and must be replaced before production.
+Configure the first admin account by setting environment variables before starting the backend:
+
+```bash
+export ADMIN_USERNAME=admin@example.com
+export ADMIN_PASSWORD='use-a-long-random-password'
+```
+
+These values bootstrap a missing username into `admin_accounts`; passwords are
+stored as hashes and subsequent authentication is database-backed.
+
+No production admin password is hardcoded in application code. Replace the temporary in-memory setup with database-backed users before adding customer accounts or production SSO.
 
 ## CORS Is Not Authentication
 
@@ -40,6 +50,18 @@ Banking and card data must never touch the Built by Grain backend. The backend s
 
 ## Admin Protection
 
-Product create, update, and deactivate operations are implemented under `/api/admin/**` and require the `ADMIN` role.
+Admin login and product management operations are implemented under `/api/admin/**` and require the `ADMIN` role.
+
+Current admin endpoints include login verification, list, create, update, activate, deactivate, delete, and product image upload.
 
 Public product browsing should stay under `/api/public/**` so customers can view products without signing in.
+
+The public Angular shop does not link to admin pages. Admin pages are separate routes under `/admin/login` and `/admin/products`, protected by an Angular guard and backed by Spring Security authorization.
+
+Public endpoints only return products where `active` is `true`. Admins can also mark `inStock` separately to show availability without hiding a product.
+
+## Product Image Uploads
+
+Admin image uploads are stored on the backend filesystem under `UPLOADS_ROOT`, which defaults to `uploads`.
+
+The API stores the resulting URL path, such as `/uploads/products/{filename}`, on the product record. Uploaded files are validated by content type and file size. The default maximum size is 5 MB and can be changed with `PRODUCT_IMAGE_MAX_FILE_SIZE_BYTES`.

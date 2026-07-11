@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" role="img" aria-labelledby="title desc">
+  <title id="title">Wooden product placeholder</title>
+  <desc id="desc">Warm wood grain surface for Built by Grain product cards.</desc>
+  <defs>
+    <linearGradient id="wood" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#7b5435"/>
+      <stop offset="0.18" stop-color="#c4945f"/>
+      <stop offset="0.34" stop-color="#8d603a"/>
+      <stop offset="0.5" stop-color="#d7b17c"/>
+      <stop offset="0.67" stop-color="#a87444"/>
+      <stop offset="0.84" stop-color="#e0bd87"/>
+      <stop offset="1" stop-color="#795233"/>
+    </linearGradient>
+    <filter id="soften">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018 0.16" numOctaves="3" seed="12"/>
+      <feColorMatrix type="saturate" values="0.28"/>
+      <feBlend mode="multiply" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="900" height="600" fill="url(#wood)"/>
+  <rect width="900" height="600" fill="#d6b287" opacity="0.24" filter="url(#soften)"/>
+  <path d="M0 190c120 26 206-32 332-2 118 28 220 42 326-2 93-39 159-12 242 18v86c-107-34-177-54-282-5-91 43-202 21-310-4-117-27-196 22-308-1z" fill="#fff4e6" opacity="0.12"/>
+  <path d="M0 356c130-22 220 44 348 18 106-22 189-56 312-20 91 27 154 23 240-8v82c-92 24-167 25-270-2-110-29-191 5-294 25-124 24-220-34-336-10z" fill="#1d2520" opacity="0.12"/>
+</svg>

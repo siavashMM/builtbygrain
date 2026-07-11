@@ -4,15 +4,13 @@ import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -22,35 +20,36 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(
+        HttpSecurity http,
+        AuthenticationEntryPoint apiAuthenticationEntryPoint
+    ) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .cors(Customizer.withDefaults())
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                 .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().denyAll()
             )
-            .httpBasic(Customizer.withDefaults());
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint(apiAuthenticationEntryPoint)
+            )
+            .httpBasic(basic -> basic.authenticationEntryPoint(apiAuthenticationEntryPoint));
 
         return http.build();
     }
 
     @Bean
-    UserDetailsService users(PasswordEncoder passwordEncoder) {
-        UserDetails user = User.withUsername("user")
-            .password(passwordEncoder.encode("password"))
-            .roles("USER")
-            .build();
-
-        UserDetails admin = User.withUsername("admin")
-            .password(passwordEncoder.encode("admin"))
-            .roles("USER", "ADMIN")
-            .build();
-
-        return new InMemoryUserDetailsManager(user, admin);
+    AuthenticationEntryPoint apiAuthenticationEntryPoint() {
+        return (request, response, exception) -> {
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"Unauthorized\"}");
+        };
     }
 
     @Bean

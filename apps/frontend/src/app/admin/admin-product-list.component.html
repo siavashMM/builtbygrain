@@ -1,0 +1,32 @@
+<div class="admin-list" aria-label="Admin product list">
+  @if (state === 'loading') {
+    <p class="state-message">Loading admin products...</p>
+  } @else if (state === 'error') {
+    <p class="admin-message error">Admin products could not be loaded.</p>
+  } @else if (products.length === 0) {
+    <p class="state-message">No products are saved yet.</p>
+  } @else {
+    <div class="admin-product-list">
+      @for (product of products; track product.id) {
+        <article class="admin-product-row">
+          <img [src]="product.imageUrls[0] || '/product-placeholder.svg'" alt="" class="admin-product-thumb">
+          <div>
+            <h3>{{ product.name }}</h3>
+            <p>{{ product.slug }} · {{ formatPrice(product) }}</p>
+            <p>
+              {{ product.inStock ? 'In stock' : 'Out of stock' }}
+              @if (product.sizes.length > 0) {
+                · {{ product.sizes.join(', ') }}
+              }
+            </p>
+          </div>
+          <span class="status-badge" [class.inactive]="!product.active">
+            {{ product.active ? 'Public' : 'Hidden' }}
+          </span>
+          <button type="button" class="secondary-button" (click)="editProduct.emit(product)">Edit</button>
+          <button type="button" class="danger-button" (click)="deleteProduct.emit(product)">Delete</button>
+        </article>
+      }
+    </div>
+  }
+</div>

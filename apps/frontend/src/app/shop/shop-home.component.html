@@ -1,0 +1,116 @@
+<main class="page-shell">
+  <section class="hero" aria-labelledby="page-title">
+    <div class="hero-copy">
+      <p class="eyebrow">Built by Grain</p>
+      <h1 id="page-title">Handcrafted wooden goods, shaped for everyday use.</h1>
+      <p class="intro">
+        Handmade wooden pieces for simple, durable rituals at home.
+      </p>
+    </div>
+
+    <aside class="status-panel" aria-labelledby="backend-status-title">
+      <div class="status-header">
+        <span class="status-dot" [class.online]="backendState() === 'online'" [class.offline]="backendState() === 'offline'"></span>
+        <div>
+          <h2 id="backend-status-title">Backend status</h2>
+          <p [class.muted]="backendState() === 'checking'">{{ backendStatus() }}</p>
+        </div>
+      </div>
+
+      <dl>
+        <div>
+          <dt>Endpoint</dt>
+          <dd>/api/health</dd>
+        </div>
+        <div>
+          <dt>Last response</dt>
+          <dd>{{ backendTimestamp() ?? 'No response yet' }}</dd>
+        </div>
+      </dl>
+
+      <button type="button" (click)="refreshBackendStatus()">Refresh</button>
+    </aside>
+  </section>
+
+  <section class="products-section" aria-labelledby="products-title">
+    <div class="section-heading">
+      <p class="eyebrow">Shop preview</p>
+      <h2 id="products-title">Available products</h2>
+    </div>
+
+    @if (productState() === 'loading') {
+      <p class="state-message">Loading products...</p>
+    } @else if (productState() === 'error') {
+      <div class="state-panel" role="status">
+        <p>Products could not be loaded.</p>
+        <button type="button" (click)="loadProducts()">Try again</button>
+      </div>
+    } @else if (products().length === 0) {
+      <p class="state-message">No active products are available yet.</p>
+    } @else {
+      <div class="product-grid">
+        @for (product of products(); track product.id) {
+          <article class="product-card">
+            <div class="product-gallery">
+              <img
+                [src]="selectedImage(product)"
+                [alt]="product.name + ' photo ' + (selectedImageIndex(product) + 1)"
+                class="product-image"
+              >
+              @if (product.imageUrls.length > 1) {
+                <button
+                  type="button"
+                  class="gallery-arrow gallery-arrow-previous"
+                  [attr.aria-label]="'Previous photo of ' + product.name"
+                  (click)="previousImage(product)"
+                >&#8249;</button>
+                <button
+                  type="button"
+                  class="gallery-arrow gallery-arrow-next"
+                  [attr.aria-label]="'Next photo of ' + product.name"
+                  (click)="nextImage(product)"
+                >&#8250;</button>
+                <span class="gallery-counter">
+                  {{ selectedImageIndex(product) + 1 }} / {{ product.imageUrls.length }}
+                </span>
+              }
+            </div>
+            @if (product.imageUrls.length > 1) {
+              <div class="product-thumbnails" [attr.aria-label]="product.name + ' photos'">
+                @for (imageUrl of product.imageUrls; track imageUrl; let index = $index) {
+                  <button
+                    type="button"
+                    class="thumbnail-button"
+                    [class.selected]="selectedImageIndex(product) === index"
+                    [attr.aria-label]="'Show photo ' + (index + 1) + ' of ' + product.name"
+                    [attr.aria-pressed]="selectedImageIndex(product) === index"
+                    (click)="selectImage(product, index)"
+                  >
+                    <img [src]="imageUrl" alt="">
+                  </button>
+                }
+              </div>
+            }
+            <div class="product-body">
+              <div>
+                <h3>{{ product.name }}</h3>
+                <p>{{ product.description || 'Handcrafted wooden product from Built by Grain.' }}</p>
+              </div>
+              <div class="product-meta">
+                @if (product.sizes.length > 0) {
+                  <span>Sizes: {{ product.sizes.join(', ') }}</span>
+                }
+                <span [class.out-of-stock]="!product.inStock">
+                  {{ product.inStock ? 'In stock' : 'Out of stock' }}
+                </span>
+              </div>
+              <div class="product-footer">
+                <p class="price">{{ formatPrice(product) }}</p>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+</main>
