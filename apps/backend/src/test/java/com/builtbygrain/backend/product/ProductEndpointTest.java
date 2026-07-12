@@ -71,6 +71,9 @@ class ProductEndpointTest {
 
         mockMvc.perform(get("/api/public/products/{slug}", "inactive-board"))
             .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/public/products/{slug}", "missing-product"))
+            .andExpect(status().isNotFound());
     }
 
     @Test

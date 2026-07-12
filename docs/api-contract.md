@@ -27,11 +27,15 @@ GET /api/public/products
 
 Purpose: return active products for public shop browsing.
 
+The response is an array of product objects in ascending name order. Inactive products are never included.
+
 ```http
 GET /api/public/products/{slug}
 ```
 
 Purpose: return one active product by slug for public shop browsing.
+
+Returns `404 Not Found` when the slug does not exist or belongs to an inactive product. This keeps inactive catalog data out of the public API.
 
 Example product response:
 
@@ -44,11 +48,14 @@ Example product response:
   "priceCents": 4900,
   "currency": "EUR",
   "imageUrl": "https://example.com/oak-serving-board.jpg",
+  "imageUrls": ["https://example.com/oak-serving-board.jpg"],
   "inStock": true,
   "sizes": ["S", "M", "L"],
   "active": true
 }
 ```
+
+`priceCents` and `currency` are backend-provided display values. The guest cart may cache them for rendering an estimated subtotal, but they are not authoritative checkout input. A future checkout request must contain only product IDs, quantities, and any supported option identifiers; the backend will reload active products and calculate the authoritative total.
 
 ```http
 POST /api/admin/auth/login
@@ -110,11 +117,15 @@ Form field:
 
 - `image`: JPEG, PNG, WebP, or GIF within the configured size limit.
 
+## Frontend-only Guest Cart
+
+The current shopping cart has no backend endpoint. It is stored in browser `localStorage` under `builtbygrain.guest-cart` and contains product IDs, slugs, display data, backend-provided display prices, and quantities. It stores neither credentials nor authentication tokens.
+
 ## Future API Areas
 
 - Products
 - Categories
-- Cart
+- Server-validated checkout
 - Orders
 - Customers
 - Admin

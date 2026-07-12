@@ -116,6 +116,8 @@ npm start
 Customer shop route:
 
 - `http://localhost:4200/`
+- `http://localhost:4200/products/{slug}`
+- `http://localhost:4200/cart`
 
 Admin routes:
 
@@ -123,3 +125,5 @@ Admin routes:
 - `http://localhost:4200/admin/products`
 
 Use the admin credentials configured with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. The normal shop UI does not link to the admin area.
+
+The shopping bag is a guest cart persisted in the current browser's `localStorage`, so it survives refreshes but is not shared between browsers or devices. Clear browser site data to reset it manually. No authentication token is stored there. Checkout is intentionally disabled in this milestone; the displayed subtotal is only an estimate based on backend-provided catalog prices.

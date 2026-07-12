@@ -1,4 +1,5 @@
 <main class="page-shell">
+  <app-shop-navigation />
   <section class="hero" aria-labelledby="page-title">
     <div class="hero-copy">
       <p class="eyebrow">Built by Grain</p>
@@ -50,25 +51,24 @@
     } @else {
       <div class="product-grid">
         @for (product of products(); track product.id) {
-          <article class="product-card">
+          <article class="product-card clickable-card" tabindex="0" [attr.aria-label]="'View ' + product.name"
+            (click)="openProduct(product)" (keydown)="handleCardKey($event, product)">
             <div class="product-gallery">
-              <img
-                [src]="selectedImage(product)"
-                [alt]="product.name + ' photo ' + (selectedImageIndex(product) + 1)"
-                class="product-image"
-              >
+              <a [routerLink]="['/products', product.slug]" (click)="$event.stopPropagation()">
+                <img [src]="selectedImage(product)" [alt]="product.name + ' photo ' + (selectedImageIndex(product) + 1)" class="product-image">
+              </a>
               @if (product.imageUrls.length > 1) {
                 <button
                   type="button"
                   class="gallery-arrow gallery-arrow-previous"
                   [attr.aria-label]="'Previous photo of ' + product.name"
-                  (click)="previousImage(product)"
+                  (click)="$event.stopPropagation(); previousImage(product)"
                 >&#8249;</button>
                 <button
                   type="button"
                   class="gallery-arrow gallery-arrow-next"
                   [attr.aria-label]="'Next photo of ' + product.name"
-                  (click)="nextImage(product)"
+                  (click)="$event.stopPropagation(); nextImage(product)"
                 >&#8250;</button>
                 <span class="gallery-counter">
                   {{ selectedImageIndex(product) + 1 }} / {{ product.imageUrls.length }}
@@ -84,7 +84,7 @@
                     [class.selected]="selectedImageIndex(product) === index"
                     [attr.aria-label]="'Show photo ' + (index + 1) + ' of ' + product.name"
                     [attr.aria-pressed]="selectedImageIndex(product) === index"
-                    (click)="selectImage(product, index)"
+                    (click)="$event.stopPropagation(); selectImage(product, index)"
                   >
                     <img [src]="imageUrl" alt="">
                   </button>
@@ -93,8 +93,8 @@
             }
             <div class="product-body">
               <div>
-                <h3>{{ product.name }}</h3>
-                <p>{{ product.description || 'Handcrafted wooden product from Built by Grain.' }}</p>
+                <h3><a [routerLink]="['/products', product.slug]" (click)="$event.stopPropagation()">{{ product.name }}</a></h3>
+                <p>{{ shortDescription(product) }}</p>
               </div>
               <div class="product-meta">
                 @if (product.sizes.length > 0) {
@@ -106,6 +106,10 @@
               </div>
               <div class="product-footer">
                 <p class="price">{{ formatPrice(product) }}</p>
+                <button type="button" class="add-button" [disabled]="!product.active || !product.inStock"
+                  (click)="addToBag($event, product)">
+                  {{ product.inStock ? (addedProductId() === product.id ? 'Added' : 'Add to bag') : 'Unavailable' }}
+                </button>
               </div>
             </div>
           </article>

@@ -1,18 +1,24 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { CartService } from '../cart/cart.service';
 import { HealthService } from '../health.service';
 import { Product, ProductService } from '../product.service';
+import { formatPrice } from './price.util';
+import { ShopNavigationComponent } from './shop-navigation.component';
 
 type BackendState = 'checking' | 'online' | 'offline';
 type ProductState = 'loading' | 'ready' | 'error';
 
 @Component({
   selector: 'app-shop-home',
-  imports: [],
+  imports: [RouterLink, ShopNavigationComponent],
   templateUrl: './shop-home.component.html'
 })
 export class ShopHomeComponent implements OnInit {
   private readonly healthService = inject(HealthService);
   private readonly productService = inject(ProductService);
+  private readonly cart = inject(CartService);
+  private readonly router = inject(Router);
 
   protected readonly backendState = signal<BackendState>('checking');
   protected readonly backendStatus = signal('Checking backend');
@@ -20,6 +26,7 @@ export class ShopHomeComponent implements OnInit {
   protected readonly productState = signal<ProductState>('loading');
   protected readonly products = signal<Product[]>([]);
   protected readonly selectedImageIndexes = signal<Record<number, number>>({});
+  protected readonly addedProductId = signal<number | null>(null);
 
   ngOnInit(): void {
     this.refreshBackendStatus();
@@ -61,10 +68,30 @@ export class ShopHomeComponent implements OnInit {
   }
 
   protected formatPrice(product: Product): string {
-    return new Intl.NumberFormat('de-DE', {
-      style: 'currency',
-      currency: product.currency
-    }).format(product.priceCents / 100);
+    return formatPrice(product.priceCents, product.currency);
+  }
+
+  protected shortDescription(product: Product): string {
+    const description = product.description || 'Handcrafted wooden product from Built by Grain.';
+    return description.length > 120 ? `${description.slice(0, 117).trimEnd()}...` : description;
+  }
+
+  protected openProduct(product: Product): void {
+    void this.router.navigate(['/products', product.slug]);
+  }
+
+  protected handleCardKey(event: KeyboardEvent, product: Product): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.openProduct(product);
+    }
+  }
+
+  protected addToBag(event: Event, product: Product): void {
+    event.stopPropagation();
+    if (this.cart.addProduct(product)) {
+      this.addedProductId.set(product.id);
+    }
   }
 
   protected selectedImage(product: Product): string {

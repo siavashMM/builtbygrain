@@ -41,3 +41,11 @@ Future areas:
 - Admin dashboard
 
 Checkout can be designed later, after product and order basics exist.
+
+## Catalog And Guest Cart
+
+The public Angular catalog uses standalone components for the product list, product detail, shop navigation, and cart page. Public product API calls remain in `ProductService`; guest-cart state and quantity rules remain in `CartService` so components only coordinate presentation and user actions.
+
+The guest cart is browser-local and persists display data in `localStorage`. Its subtotal is explicitly an estimate. Cached prices are never a trusted payment or order total: a future checkout API must accept product IDs and quantities, reload products from PostgreSQL, verify active/stock state, and calculate totals on the backend.
+
+Public product detail lookup uses the existing product service and `findBySlugAndActiveTrue`, keeping the controller thin and preventing inactive products from being exposed.

@@ -1,0 +1,56 @@
+<main class="shop-page">
+  <app-shop-navigation />
+
+  @if (state() === 'loading') {
+    <section class="content-panel state-panel" aria-live="polite"><p>Loading product...</p></section>
+  } @else if (state() === 'not-found') {
+    <section class="content-panel state-panel">
+      <h1>Product not found</h1>
+      <p>This product is unavailable or no longer part of the active collection.</p>
+      <a routerLink="/" class="text-link">Return to the shop</a>
+    </section>
+  } @else if (state() === 'error') {
+    <section class="content-panel state-panel" role="alert">
+      <h1>We could not load this product</h1>
+      <p>Please try again.</p>
+      <button type="button" (click)="loadProduct()">Try again</button>
+    </section>
+  } @else if (product(); as item) {
+    <section class="content-panel product-detail">
+      <div class="detail-gallery">
+        <img class="detail-image" [src]="images(item)[selectedImageIndex()]" [alt]="item.name + ' photo'">
+        @if (images(item).length > 1) {
+          <div class="detail-thumbnails" aria-label="Product images">
+            @for (image of images(item); track image; let index = $index) {
+              <button type="button" class="thumbnail-button" [class.selected]="index === selectedImageIndex()"
+                [attr.aria-label]="'Show photo ' + (index + 1)" (click)="selectImage(index)">
+                <img [src]="image" alt="">
+              </button>
+            }
+          </div>
+        }
+      </div>
+      <div class="detail-copy">
+        <p class="eyebrow">Built by Grain</p>
+        <h1>{{ item.name }}</h1>
+        <p class="detail-price">{{ formatPrice(item) }}</p>
+        <p class="availability" [class.out-of-stock]="!item.inStock">
+          {{ item.inStock ? 'In stock and available' : 'Currently unavailable' }}
+        </p>
+        <p class="detail-description">{{ item.description || 'Handcrafted wooden product from Built by Grain.' }}</p>
+        @if (item.sizes.length > 0) { <p class="detail-meta">Available sizes: {{ item.sizes.join(', ') }}</p> }
+        <div class="purchase-row">
+          <div class="quantity-control" aria-label="Quantity selector">
+            <button type="button" (click)="changeQuantity(-1)" [disabled]="quantity() === 1" aria-label="Decrease quantity">−</button>
+            <span aria-live="polite">{{ quantity() }}</span>
+            <button type="button" (click)="changeQuantity(1)" [disabled]="quantity() === 99" aria-label="Increase quantity">+</button>
+          </div>
+          <button type="button" class="add-button" [disabled]="!item.active || !item.inStock" (click)="addToBag(item)">
+            {{ item.inStock ? 'Add to bag' : 'Unavailable' }}
+          </button>
+        </div>
+        @if (addedMessage()) { <p class="cart-feedback" aria-live="polite">{{ addedMessage() }}</p> }
+      </div>
+    </section>
+  }
+</main>

@@ -38,7 +38,7 @@ export class ProductService {
   }
 
   getProduct(slug: string): Observable<Product> {
-    return this.http.get<Product>(`/api/public/products/${slug}`);
+    return this.http.get<Product>(`/api/public/products/${encodeURIComponent(slug)}`);
   }
 
   getAdminProducts(): Observable<Product[]> {

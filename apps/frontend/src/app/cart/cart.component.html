@@ -1,0 +1,40 @@
+<main class="shop-page">
+  <app-shop-navigation />
+  <section class="content-panel cart-panel" aria-labelledby="cart-title">
+    <div class="section-heading">
+      <p class="eyebrow">Your selection</p>
+      <h1 id="cart-title">Shopping bag</h1>
+    </div>
+    @if (cart.items().length === 0) {
+      <div class="empty-cart">
+        <p>Your bag is empty.</p>
+        <a routerLink="/" class="text-link">Browse the collection</a>
+      </div>
+    } @else {
+      <div class="cart-items">
+        @for (item of cart.items(); track item.productId) {
+          <article class="cart-item">
+            <a [routerLink]="['/products', item.slug]"><img [src]="item.imageUrl || '/product-placeholder.svg'" [alt]="item.name" class="cart-image"></a>
+            <div class="cart-item-copy">
+              <h2><a [routerLink]="['/products', item.slug]">{{ item.name }}</a></h2>
+              <p>{{ formatItemPrice(item) }} each</p>
+              <button type="button" class="remove-button" (click)="cart.remove(item.productId)">Remove</button>
+            </div>
+            <div class="quantity-control" aria-label="Quantity for {{ item.name }}">
+              <button type="button" (click)="cart.decrease(item.productId)" [disabled]="item.quantity === 1" aria-label="Decrease quantity">−</button>
+              <span>{{ item.quantity }}</span>
+              <button type="button" (click)="cart.increase(item.productId)" [disabled]="item.quantity === 99" aria-label="Increase quantity">+</button>
+            </div>
+            <p class="item-total">{{ formatItemPrice(item, true) }}</p>
+          </article>
+        }
+      </div>
+      <aside class="cart-summary">
+        <div><span>Estimated subtotal</span><strong>{{ subtotal() }}</strong></div>
+        <p>Final prices and availability will be verified securely at checkout.</p>
+        <button type="button" disabled>Checkout coming soon</button>
+        <button type="button" class="secondary-button" (click)="cart.clear()">Clear bag</button>
+      </aside>
+    }
+  </section>
+</main>
