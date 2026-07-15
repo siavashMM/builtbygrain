@@ -34,7 +34,11 @@ public record ProductRequest(
     @Size(max = 20)
     List<@NotBlank @Size(max = 40) String> sizes,
 
-    Boolean active
+    Boolean active,
+
+    ProductConfiguration configuration,
+
+    Long categoryId
 ) {
     public ProductRequest {
         if (sizes != null) {

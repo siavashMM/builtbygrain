@@ -1,0 +1,46 @@
+<section class="variant-setup" aria-labelledby="options-title">
+  <div class="simple-step-heading">
+    <span>1</span>
+    <div><h3 id="options-title">Define the possible sizes and colors</h3><p>Use the controls below—there is no special format to type.</p></div>
+  </div>
+
+  @if (message()) { <p class="admin-message" aria-live="polite">{{ message() }}</p> }
+
+  <div class="variation-definition-grid">
+    <article>
+      <h4>Sizes</h4>
+      <p>Use − and + or the number-field arrows, then add the size.</p>
+      <div class="choice-chips">
+        @for (value of sizes(); track value.id || value.label) { <span>{{ value.label }} <button type="button" (click)="remove('size', value)" [attr.aria-label]="'Remove size ' + value.label">×</button></span> }
+      </div>
+      <div class="size-picker" aria-label="Size in centimeters">
+        <button type="button" class="secondary-button" (click)="changeSize(-1)" aria-label="Decrease size">−</button>
+        <label><span>Size</span><span class="number-with-unit"><input type="number" min="1" max="1000" step="1" [value]="sizeInput()" (input)="setSize($any($event.target).value)"><b>cm</b></span></label>
+        <button type="button" class="secondary-button" (click)="changeSize(1)" aria-label="Increase size">+</button>
+        <button type="button" [disabled]="working()" (click)="addSize()">Add {{ sizeInput() }} cm</button>
+      </div>
+    </article>
+
+    <article>
+      <h4>Colors</h4>
+      <p>Select a color visually, then add it.</p>
+      <div class="choice-chips">
+        @for (value of colors(); track value.id || value.label) { <span><i class="choice-color" [style.background-color]="value.swatchHex || '#d2b48c'"></i>{{ value.label }} <button type="button" (click)="remove('color', value)" [attr.aria-label]="'Remove color ' + value.label">×</button></span> }
+      </div>
+      <div class="color-palette" aria-label="Choose a color">
+        @for (color of colorPalette; track color.name) {
+          <button type="button" [class.selected]="selectedColor().name === color.name" (click)="chooseColor(color.name, color.hex)" [attr.aria-label]="color.name" [attr.title]="color.name"><span [style.background-color]="color.hex"></span></button>
+        }
+        <label class="custom-color" title="Choose a custom color"><input type="color" [value]="selectedColor().hex" (input)="chooseCustomColor($any($event.target).value)"><span>Custom</span></label>
+      </div>
+      <div class="selected-color-row"><span><i [style.background-color]="selectedColor().hex"></i>{{ selectedColor().name }}</span><button type="button" [disabled]="working()" (click)="addColor()">Add color</button></div>
+    </article>
+  </div>
+
+  <div class="variation-draft-actions">
+    <p>{{ dirty() ? 'You have unsaved size or color changes.' : 'Sizes and colors are saved.' }}</p>
+    @if (dirty()) { <button type="button" class="secondary-button" [disabled]="working()" (click)="discardDraft()">Discard changes</button> }
+    <button type="button" [disabled]="working() || !dirty()" (click)="saveVariations()">{{ working() ? 'Saving…' : 'Save sizes & colors' }}</button>
+  </div>
+  <p class="combination-explanation">The combination list below changes only after you save sizes and colors.</p>
+</section>

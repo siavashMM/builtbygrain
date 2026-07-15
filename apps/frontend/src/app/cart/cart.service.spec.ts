@@ -4,6 +4,9 @@ import { CartService } from './cart.service';
 
 describe('CartService', () => {
   const product: Product = {
+    categoryId: 1,
+    categoryName: 'Uncategorized',
+    categorySlug: 'uncategorized',
     id: 7,
     name: 'Oak Board',
     slug: 'oak-board',
@@ -14,7 +17,11 @@ describe('CartService', () => {
     imageUrls: ['/oak.jpg'],
     inStock: true,
     sizes: [],
-    active: true
+    active: true,
+    configuration: {
+      benefits: [], specifications: {}, sections: [], faqs: [], options: [],
+      variants: [{ id: 'default-7', optionValueIds: [], priceCents: 4900, stockStatus: 'IN_STOCK', available: true, backorderAllowed: false, preorderAllowed: false, imageUrls: [] }]
+    }
   };
 
   beforeEach(() => {

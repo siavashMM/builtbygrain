@@ -4,6 +4,9 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ProductService {
@@ -12,17 +15,26 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductImageStorageService productImageStorageService;
+    private final com.builtbygrain.backend.catalog.CategoryRepository categoryRepository;
+    private final com.builtbygrain.backend.catalog.CatalogManagementService catalogManagement;
+    private final JdbcTemplate jdbc;
 
-    public ProductService(ProductRepository productRepository, ProductImageStorageService productImageStorageService) {
+    public ProductService(ProductRepository productRepository, ProductImageStorageService productImageStorageService,
+            com.builtbygrain.backend.catalog.CategoryRepository categoryRepository,
+            com.builtbygrain.backend.catalog.CatalogManagementService catalogManagement,
+            JdbcTemplate jdbc) {
         this.productRepository = productRepository;
         this.productImageStorageService = productImageStorageService;
+        this.categoryRepository = categoryRepository;
+        this.catalogManagement = catalogManagement;
+        this.jdbc = jdbc;
     }
 
     @Transactional(readOnly = true)
     public List<ProductResponse> getActiveProducts() {
         return productRepository.findByActiveTrueOrderByNameAsc()
             .stream()
-            .map(ProductResponse::from)
+            .map(this::response)
             .toList();
     }
 
@@ -30,19 +42,24 @@ public class ProductService {
     public List<ProductResponse> getAllProductsForAdmin() {
         return productRepository.findAllByOrderByNameAsc()
             .stream()
-            .map(ProductResponse::from)
+            .map(this::response)
             .toList();
     }
 
     @Transactional(readOnly = true)
     public ProductResponse getActiveProductBySlug(String slug) {
         return productRepository.findBySlugAndActiveTrue(slug)
-            .map(ProductResponse::from)
+            .map(this::response)
             .orElseThrow(() -> new ProductNotFoundException(slug));
     }
 
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
+        return createProduct(request, request.categoryId());
+    }
+
+    @Transactional
+    public ProductResponse createProduct(ProductRequest request, Long categoryId) {
         ensureSlugIsAvailable(request.slug());
 
         Product product = new Product(
@@ -53,9 +70,10 @@ public class ProductService {
             request.currency(),
             null
         );
+        product.assignCategory(resolveCategory(categoryId));
         product.updateFrom(request);
 
-        return ProductResponse.from(productRepository.save(product));
+        return response(productRepository.save(product));
     }
 
     @Transactional
@@ -63,26 +81,46 @@ public class ProductService {
         Product product = findProduct(id);
         ensureSlugIsAvailableForProduct(request.slug(), id);
         product.updateFrom(request);
-        return ProductResponse.from(product);
+        if (request.categoryId() != null) product.assignCategory(resolveCategory(request.categoryId()));
+        return response(product);
+    }
+
+    @Transactional(readOnly = true)
+    public ProductResponse getProductForAdmin(Long id) { return response(findProduct(id)); }
+
+    @Transactional
+    public ProductResponse moveProduct(Long id, Long categoryId) {
+        Product product = findProduct(id); product.assignCategory(resolveCategory(categoryId)); return response(product);
+    }
+
+    @Transactional
+    public ProductResponse duplicateProduct(Long id) {
+        Product source = findProduct(id);
+        String base = source.getSlug() + "-copy"; String slug = base; int suffix = 2;
+        while (productRepository.existsBySlug(slug)) slug = base + "-" + suffix++;
+        Product copy = new Product(source.getName() + " copy", slug, source.getDescription(), source.getPriceCents(), source.getCurrency(), null);
+        copy.assignCategory(source.getCategory());
+        return response(productRepository.save(copy));
     }
 
     @Transactional
     public ProductResponse deactivateProduct(Long id) {
         Product product = findProduct(id);
         product.deactivate();
-        return ProductResponse.from(product);
+        return response(product);
     }
 
     @Transactional
     public ProductResponse activateProduct(Long id) {
         Product product = findProduct(id);
         product.activate();
-        return ProductResponse.from(product);
+        return response(product);
     }
 
     @Transactional
     public void deleteProduct(Long id) {
         Product product = findProduct(id);
+        jdbc.update("UPDATE products SET listing_primary_image_id=NULL,listing_hover_image_id=NULL WHERE id=?", id);
         productRepository.delete(product);
     }
 
@@ -96,7 +134,7 @@ public class ProductService {
             throw new ProductImageStorageException("A product can have at most 8 images.");
         }
         images.forEach(image -> product.addImageUrl(productImageStorageService.store(image)));
-        return ProductResponse.from(product);
+        return response(product);
     }
 
     @Transactional
@@ -114,13 +152,32 @@ public class ProductService {
         if (imageIndex < 0 || imageIndex >= product.getImageUrls().size()) {
             throw new ProductNotFoundException("image " + imageIndex);
         }
+        Long imageId = jdbc.query("SELECT id FROM product_images WHERE product_id=? ORDER BY display_order,id OFFSET ? ROWS FETCH NEXT 1 ROWS ONLY",
+            (rs, row) -> rs.getLong(1), id, imageIndex).stream().findFirst().orElse(null);
+        if (imageId != null) {
+            Integer listingUse = jdbc.queryForObject("SELECT COUNT(*) FROM products WHERE id=? AND (listing_primary_image_id=? OR listing_hover_image_id=?)",
+                Integer.class, id, imageId, imageId);
+            if (listingUse != null && listingUse > 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Clear or reassign this product card image before deleting it.");
+            }
+        }
         productImageStorageService.delete(product.removeImage(imageIndex));
-        return ProductResponse.from(product);
+        return response(product);
     }
 
     private Product findProduct(Long id) {
         return productRepository.findById(id)
             .orElseThrow(() -> new ProductNotFoundException(id));
+    }
+
+    private ProductResponse response(Product product) {
+        return ProductResponse.from(product, catalogManagement.configuration(product.getId()));
+    }
+
+    private com.builtbygrain.backend.catalog.Category resolveCategory(Long id) {
+        if (id != null) return categoryRepository.findById(id).orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Category not found"));
+        return categoryRepository.findBySlugAndParentIsNull("uncategorized").orElseThrow(() -> new IllegalStateException("Default catalog category is missing"));
     }
 
     private void ensureSlugIsAvailable(String slug) {

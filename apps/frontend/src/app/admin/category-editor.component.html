@@ -1,0 +1,15 @@
+<section class="catalog-editor-panel" aria-labelledby="category-editor-title">
+  <header class="editor-header"><div><p class="eyebrow">Category</p><h2 id="category-editor-title">{{ category ? 'Edit ' + category.name : 'New category' }}</h2></div><span class="status-badge" [class.inactive]="!form.controls.active.value">{{ form.controls.active.value ? 'Active' : 'Inactive' }}</span></header>
+  <form class="admin-form" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="form-grid">
+      <label>Name<input formControlName="name" (input)="slugFromName()">@if(form.controls.name.touched&&form.controls.name.invalid){<small class="field-error">Name is required.</small>}</label>
+      <label>Slug<input formControlName="slug">@if(form.controls.slug.touched&&form.controls.slug.invalid){<small class="field-error">Use lowercase letters, numbers and hyphens.</small>}</label>
+      <label>Parent category<select formControlName="parentId"><option [ngValue]="null">Top level</option>@for(c of availableParents();track c.id){<option [ngValue]="c.id">{{c.name}}</option>}</select></label>
+      <label>Sort order<input type="number" min="0" formControlName="sortOrder"></label>
+    </div>
+    <label>Description<textarea rows="5" formControlName="description"></textarea></label>
+    <label>Optional image URL<input formControlName="imageUrl"></label>
+    <label class="checkbox-label"><input type="checkbox" formControlName="active">Active category</label>
+    <div class="sticky-editor-actions"><button type="submit" [disabled]="saving">{{saving?'Saving…':'Save category'}}</button><button type="button" class="secondary-button" (click)="cancel.emit()">Cancel</button>@if(category){<button type="button" class="danger-button" (click)="deleteCategory.emit()">Delete / archive</button>}</div>
+  </form>
+</section>

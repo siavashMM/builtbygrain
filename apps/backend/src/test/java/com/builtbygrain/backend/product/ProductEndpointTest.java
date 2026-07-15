@@ -50,11 +50,10 @@ class ProductEndpointTest {
             .andExpect(jsonPath("$.length()").value(1))
             .andExpect(jsonPath("$[0].name").value("Active Bowl"))
             .andExpect(jsonPath("$[0].slug").value("active-bowl"))
-            .andExpect(jsonPath("$[0].priceCents").value(3200))
-            .andExpect(jsonPath("$[0].imageUrl").value("/active.jpg"))
-            .andExpect(jsonPath("$[0].inStock").value(true))
-            .andExpect(jsonPath("$[0].sizes").isArray())
-            .andExpect(jsonPath("$[0].active").value(true));
+            .andExpect(jsonPath("$[0].fromPriceCents").value(3200))
+            .andExpect(jsonPath("$[0].primaryImageUrl").value("/active.jpg"))
+            .andExpect(jsonPath("$[0].hoverImageUrl").value("/active.jpg"))
+            .andExpect(jsonPath("$[0].colorSwatches").isArray());
     }
 
     @Test

@@ -12,18 +12,20 @@
       </div>
     } @else {
       <div class="cart-items">
-        @for (item of cart.items(); track item.productId) {
+        @for (item of cart.items(); track item.productId + '-' + item.variantId) {
           <article class="cart-item">
-            <a [routerLink]="['/products', item.slug]"><img [src]="item.imageUrl || '/product-placeholder.svg'" [alt]="item.name" class="cart-image"></a>
+            <a [routerLink]="['/products', item.slug]" [queryParams]="{ variant: item.variantId }"><img [src]="item.imageUrl || '/product-placeholder.svg'" [alt]="item.name + (item.variantSummary ? ', ' + item.variantSummary : '')" class="cart-image"></a>
             <div class="cart-item-copy">
-              <h2><a [routerLink]="['/products', item.slug]">{{ item.name }}</a></h2>
+              <h2><a [routerLink]="['/products', item.slug]" [queryParams]="{ variant: item.variantId }">{{ item.name }}</a></h2>
+              @if (item.variantSummary) { <p class="cart-configuration"><span>Selected configuration</span><strong>{{ item.variantSummary }}</strong></p> }
+              <p class="cart-sku">Variant: {{ item.variantId }}</p>
               <p>{{ formatItemPrice(item) }} each</p>
-              <button type="button" class="remove-button" (click)="cart.remove(item.productId)">Remove</button>
+              <button type="button" class="remove-button" (click)="cart.remove(item.productId, item.variantId)">Remove</button>
             </div>
             <div class="quantity-control" aria-label="Quantity for {{ item.name }}">
-              <button type="button" (click)="cart.decrease(item.productId)" [disabled]="item.quantity === 1" aria-label="Decrease quantity">−</button>
+              <button type="button" (click)="cart.decrease(item.productId, item.variantId)" [disabled]="item.quantity === 1" aria-label="Decrease quantity">−</button>
               <span>{{ item.quantity }}</span>
-              <button type="button" (click)="cart.increase(item.productId)" [disabled]="item.quantity === 99" aria-label="Increase quantity">+</button>
+              <button type="button" (click)="cart.increase(item.productId, item.variantId)" [disabled]="item.quantity === 99" aria-label="Increase quantity">+</button>
             </div>
             <p class="item-total">{{ formatItemPrice(item, true) }}</p>
           </article>

@@ -1,49 +1,61 @@
-<main class="admin-page-shell">
-  <section class="admin-section" aria-labelledby="admin-products-title">
-    <div class="admin-topbar">
-      <div class="section-heading">
-        <p class="eyebrow">Admin</p>
-        <h1 id="admin-products-title">Product management</h1>
-      </div>
-      <div class="admin-session">
-        <span>{{ adminUsername }}</span>
-        <button type="button" class="secondary-button" (click)="logout()">Sign out</button>
-      </div>
+<section class="admin-route-page catalog-route-page" aria-labelledby="admin-products-title">
+  <header class="admin-page-heading">
+    <div>
+      <p class="admin-kicker">Catalog</p>
+      <h1 id="admin-products-title">{{ workspace === 'categories' ? 'Categories' : 'Products' }}</h1>
+      <p>{{ workspace === 'categories' ? 'Organize the category tree and keep your catalog easy to browse.' : 'Create, organize, price, and publish everything you sell.' }}</p>
     </div>
+    <div class="admin-page-actions">
+      @if (workspace === 'categories') {
+        <button type="button" class="admin-primary-button" (click)="handleTreeAction({action:'add-root', node:null})">Add category</button>
+      } @else {
+        <button type="button" class="admin-primary-button" (click)="newProduct()">Add product</button>
+      }
+    </div>
+  </header>
 
-    @if (message()) {
-      <p class="admin-message" [class.error]="actionState() === 'error'">{{ message() }}</p>
-    }
+  @if (message()) {
+    <div class="admin-feedback" [class.error]="actionState() === 'error'" [class.success]="actionState() === 'success'" role="status">
+      <span aria-hidden="true">{{ actionState() === 'error' ? '!' : '✓' }}</span><p>{{ message() }}</p>
+    </div>
+  }
 
-    <div class="admin-layout two-column">
-      <div>
-        <div class="admin-list-header">
-          <h2>Saved products</h2>
-          <button type="button" class="secondary-button" (click)="loadProducts()">Refresh</button>
-        </div>
-
-        <app-admin-product-list
-          [products]="products()"
-          [state]="productsState()"
-          (editProduct)="editProduct($event)"
-          (deleteProduct)="deleteProduct($event)"
-        />
-      </div>
-
-      <div class="admin-editor">
+  <div class="catalog-admin-layout">
+    <app-catalog-tree (nodeSelected)="selectCatalogNode($event)" (actionRequested)="handleTreeAction($event)" />
+    <div class="admin-editor">
+      @if(editorMode()==='empty' && workspace === 'products'){
+        <section class="admin-card product-index-card">
+          <header class="card-heading"><div><h2>All products</h2><p>Select a product to edit it, or add a new product.</p></div><span class="record-count">{{ products().length }} total</span></header>
+          <app-admin-product-list [products]="products()" [state]="productsState()" (editProduct)="editProduct($event); editorMode.set('product')" (deleteProduct)="deleteProduct($event)" />
+        </section>
+      }
+      @if(editorMode()==='empty' && workspace === 'categories'){
+        <section class="admin-card category-empty-state"><span aria-hidden="true">⊞</span><h2>Choose a category</h2><p>Select a category in the tree to edit its details, or create a new root category.</p><button type="button" (click)="handleTreeAction({action:'add-root', node:null})">Add first category</button></section>
+      }
+        @if(editorMode()==='category'){
+          <app-category-editor [category]="creatingCategory()?null:selectedCategory()" [categories]="categories()" [parentId]="categoryParentId()" [saving]="actionState()==='saving'" (save)="saveCategory($event)" (cancel)="cancelCategory()" (deleteCategory)="deleteSelectedCategory()" />
+        }
+        @if(editorMode()==='product'){
         <app-admin-product-form
           [product]="selectedProduct()"
           [saving]="actionState() === 'saving'"
+          [categoryId]="productCategoryId()"
+          [categoryName]="currentCategoryName()"
+          [focusVariantId]="selectedVariantId()"
           (saveProduct)="saveProduct($event)"
           (newProduct)="newProduct()"
+          (catalogChanged)="tree?.reload()"
+          (duplicateProduct)="duplicateCurrent()"
+          (archiveProduct)="archiveCurrent()"
+          (productChanged)="handleImageUploaded($event)"
         />
-
-        <app-admin-image-upload
-          [product]="selectedProduct()"
-          (uploaded)="handleImageUploaded($event)"
-          (removeImage)="removeImage($event)"
-        />
-      </div>
+        }
     </div>
-  </section>
-</main>
+  </div>
+  @if (workspace === 'categories') {
+    <details class="catalog-danger-zone">
+      <summary>Catalog maintenance</summary>
+      <div><span><strong>Reset the entire catalog</strong><small>This permanently removes all categories, products, options, and variants. Uploaded files remain on disk.</small></span><button type="button" class="admin-danger-button" [disabled]="actionState() === 'saving'" (click)="resetCatalog()">Reset catalog</button></div>
+    </details>
+  }
+</section>

@@ -1,14 +1,20 @@
 import { HttpClient, HttpHeaders, HttpInterceptorFn } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
 
 interface AdminLoginResponse {
   username: string;
   admin: boolean;
 }
 
-const TOKEN_STORAGE_KEY = 'builtbygrain.admin.basicToken';
-const USERNAME_STORAGE_KEY = 'builtbygrain.admin.username';
+interface StoredAdminSession {
+  username: string;
+  token: string;
+}
+
+const SESSION_STORAGE_KEY = 'builtbygrain.admin.session.v2';
+const LEGACY_TOKEN_STORAGE_KEY = 'builtbygrain.admin.basicToken';
+const LEGACY_USERNAME_STORAGE_KEY = 'builtbygrain.admin.username';
 
 @Injectable({
   providedIn: 'root'
@@ -29,9 +35,17 @@ export class AdminAuthService {
     );
   }
 
+  validateSession(): Observable<boolean> {
+    return this.http.post<AdminLoginResponse>('/api/admin/auth/login', null).pipe(
+      map((response) => response.admin === true)
+    );
+  }
+
   logout(): void {
-    this.storage()?.removeItem(TOKEN_STORAGE_KEY);
-    this.storage()?.removeItem(USERNAME_STORAGE_KEY);
+    const storage = this.storage();
+    storage?.removeItem(SESSION_STORAGE_KEY);
+    storage?.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+    storage?.removeItem(LEGACY_USERNAME_STORAGE_KEY);
   }
 
   isLoggedIn(): boolean {
@@ -39,16 +53,34 @@ export class AdminAuthService {
   }
 
   getToken(): string | null {
-    return this.storage()?.getItem(TOKEN_STORAGE_KEY) ?? null;
+    return this.getSession()?.token ?? null;
   }
 
   getUsername(): string | null {
-    return this.storage()?.getItem(USERNAME_STORAGE_KEY) ?? null;
+    return this.getSession()?.username ?? null;
   }
 
   private setSession(username: string, token: string): void {
-    this.storage()?.setItem(TOKEN_STORAGE_KEY, token);
-    this.storage()?.setItem(USERNAME_STORAGE_KEY, username);
+    const storage = this.storage();
+    storage?.setItem(SESSION_STORAGE_KEY, JSON.stringify({ username, token } satisfies StoredAdminSession));
+    storage?.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+    storage?.removeItem(LEGACY_USERNAME_STORAGE_KEY);
+  }
+
+  private getSession(): StoredAdminSession | null {
+    const storage = this.storage();
+    const raw = storage?.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      const session = JSON.parse(raw) as Partial<StoredAdminSession>;
+      if (typeof session.username === 'string' && typeof session.token === 'string') {
+        return { username: session.username, token: session.token };
+      }
+    } catch {
+      // Invalid or obsolete browser state is handled like a signed-out session.
+    }
+    storage?.removeItem(SESSION_STORAGE_KEY);
+    return null;
   }
 
   private storage(): Storage | null {

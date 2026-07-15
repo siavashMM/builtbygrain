@@ -1,0 +1,35 @@
+<aside class="catalog-tree" aria-label="Catalog content tree">
+  <div class="catalog-tree-heading">
+    <div><p class="eyebrow">Content tree</p><h2>Catalog</h2></div>
+    <button type="button" class="compact-button" (click)="reload()" aria-label="Refresh catalog">↻</button>
+  </div>
+  <div class="catalog-toolbar" aria-label="Catalog actions">
+    <button type="button" (click)="request('add-root', null)">+ Root category</button>
+    <button type="button" [disabled]="selected()?.nodeType !== 'CATEGORY'" (click)="request('add-child')">+ Child</button>
+    <button type="button" [disabled]="selected()?.nodeType !== 'CATEGORY'" (click)="request('add-product')">+ Product</button>
+    <button type="button" [disabled]="!selected()" (click)="request('rename')">Edit</button>
+    <button type="button" [disabled]="!selected() || selected()?.nodeType === 'VARIANT'" (click)="request('move')">Move</button>
+    <button type="button" [disabled]="!selected() || selected()?.nodeType === 'VARIANT'" (click)="request('toggle-status')">Status</button>
+    <button type="button" [disabled]="!selected() || selected()?.nodeType === 'VARIANT'" (click)="request(selected()?.nodeType === 'PRODUCT' ? 'archive' : 'delete')">{{selected()?.nodeType === 'PRODUCT'?'Archive':'Delete'}}</button>
+  </div>
+  <label class="catalog-search"><span class="sr-only">Search catalog</span>
+    <input type="search" placeholder="Search name or SKU" [value]="query()" (input)="updateQuery($any($event.target).value)">
+  </label>
+  @if (state() === 'loading') { <p class="state-message">Loading catalog…</p> }
+  @else if (state() === 'error') { <p class="admin-message error">Catalog could not be loaded.</p> }
+  @else if (roots().length === 0) { <p class="state-message">No categories yet.</p> }
+  @else {
+    <div class="catalog-nodes" role="tree">
+      @for (item of visibleNodes(); track item.node.id) {
+        <div role="treeitem" class="catalog-node" [class.selected]="selectedId() === item.node.id"
+          [style.--tree-depth]="item.depth" [attr.aria-expanded]="item.node.hasChildren ? expanded().has(item.node.id) : null"
+          (dblclick)="toggle(item.node, $event)">
+          <button type="button" class="tree-toggle" (click)="toggle(item.node, $event)" [attr.aria-label]="(expanded().has(item.node.id)?'Collapse ':'Expand ')+item.node.label">{{ item.node.hasChildren ? (expanded().has(item.node.id) ? '▾' : '▸') : '' }}</button>
+          <span class="node-icon">{{ icon(item.node) }}</span><button type="button" class="node-select" (click)="select(item.node)"><span class="node-copy"><strong>{{ item.node.label }}</strong>
+          @if (item.node.secondaryLabel) { <small>{{ item.node.secondaryLabel }}</small> }</span></button><span class="node-status">{{ item.node.status }}</span>
+          <button type="button" class="node-menu" (click)="request('rename',item.node)" [attr.aria-label]="'Edit '+item.node.label">•••</button>
+        </div>
+      }
+    </div>
+  }
+</aside>

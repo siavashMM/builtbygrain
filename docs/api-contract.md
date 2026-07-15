@@ -25,9 +25,32 @@ Example response:
 GET /api/public/products
 ```
 
-Purpose: return active products for public shop browsing.
+Purpose: return active product cards for public list views.
 
-The response is an array of product objects in ascending name order. Inactive products are never included.
+The response is an array of compact product-card objects in ascending name order. Inactive products are never included. Card-image fallback rules and the cheapest active-variant price are resolved by the backend.
+
+```json
+{
+  "id": 1,
+  "name": "Oak Serving Board",
+  "slug": "oak-serving-board",
+  "currency": "EUR",
+  "fromPriceCents": 4900,
+  "primaryImageUrl": "/api/public/uploads/products/oak-front.webp",
+  "hoverImageUrl": "/api/public/uploads/products/oak-side.webp",
+  "categoryId": 2,
+  "categoryName": "Serving boards",
+  "categorySlug": "serving-boards",
+  "colorSwatches": [{
+    "id": 12,
+    "label": "Oak",
+    "swatchHex": "#B78B5E",
+    "swatchImageUrl": null,
+    "primaryImageUrl": "/api/public/uploads/products/oak-front.webp",
+    "hoverImageUrl": "/api/public/uploads/products/oak-side.webp"
+  }]
+}
+```
 
 ```http
 GET /api/public/products/{slug}
@@ -65,11 +88,16 @@ PUT /api/admin/products/{id}
 PATCH /api/admin/products/{id}/deactivate
 PATCH /api/admin/products/{id}/activate
 DELETE /api/admin/products/{id}
-POST /api/admin/products/{id}/image
+POST /api/admin/products/{id}/images
+GET /api/admin/products/{id}/images
+GET /api/admin/products/{id}/listing-images
+PUT /api/admin/products/{id}/listing-images/{primary|hover}
 ```
 
 Purpose: allow admins to verify login, list all products, create, update, deactivate, activate, delete, and upload product images.
 These endpoints require the `ADMIN` role.
+
+The listing-image update body is `{ "imageId": 123 }`; use `null` to clear a role. The image must be an active `product_images` record owned by the same product. Image-list responses include filenames and usage labels so the editor can show gallery, variant, and card assignments.
 
 Admin login uses HTTP Basic credentials and returns:
 
@@ -109,13 +137,13 @@ Validation rules:
 Product image upload uses multipart form data:
 
 ```http
-POST /api/admin/products/{id}/image
+POST /api/admin/products/{id}/images
 Content-Type: multipart/form-data
 ```
 
 Form field:
 
-- `image`: JPEG, PNG, WebP, or GIF within the configured size limit.
+- `images`: one or more JPEG, PNG, WebP, or GIF files within the configured size limit.
 
 ## Frontend-only Guest Cart
 

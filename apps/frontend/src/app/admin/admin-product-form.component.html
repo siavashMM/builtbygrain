@@ -1,126 +1,96 @@
-<form class="admin-form" (submit)="submit($event)">
-  <div class="form-header">
+<section class="product-editor-panel">
+  <header class="product-editor-heading">
     <div>
-      <p class="eyebrow">{{ product === null ? 'Add product' : 'Edit product' }}</p>
-      <h2>{{ product === null ? 'New product' : product.name }}</h2>
+      <p class="admin-breadcrumb">{{ categoryName || 'Catalog' }} <span>/</span> {{ product?.name || 'New product' }}</p>
+      <div class="product-title-line"><h2>{{ product?.name || 'New product' }}</h2><span class="status-badge" [class.inactive]="product && !product.active">{{ product ? (product.active ? 'Active' : 'Archived') : 'Draft' }}</span></div>
     </div>
-    <button type="button" class="secondary-button" (click)="startNewProduct()">New</button>
-  </div>
+    <div class="header-actions">
+      @if (product) {
+        <a class="admin-secondary-link" [href]="'/products/' + product.slug" target="_blank">Preview ↗</a>
+        <button type="button" class="admin-secondary-button" (click)="duplicateProduct.emit()">Duplicate</button>
+        <button type="button" class="admin-danger-button" (click)="archiveProduct.emit()">Archive</button>
+      }
+    </div>
+  </header>
 
-  <div class="form-grid">
-    <label>
-      Name
-      <input
-        name="name"
-        type="text"
-        required
-        [value]="form().name"
-        (input)="updateField('name', $any($event.target).value)"
-      >
-    </label>
-
-    <label>
-      Slug
-      <input
-        name="slug"
-        type="text"
-        required
-        placeholder="oak-serving-board"
-        [value]="form().slug"
-        (input)="updateField('slug', $any($event.target).value)"
-      >
-    </label>
-
-    <label>
-      Price cents
-      <input
-        name="priceCents"
-        type="number"
-        min="1"
-        required
-        [value]="form().priceCents"
-        (input)="updatePriceCents($any($event.target).value)"
-      >
-    </label>
-
-    <label>
-      Currency
-      <input
-        name="currency"
-        type="text"
-        maxlength="3"
-        required
-        [value]="form().currency"
-        (input)="updateField('currency', $any($event.target).value)"
-      >
-    </label>
-
-    <label>
-      Sizes
-      <input
-        name="sizes"
-        type="text"
-        placeholder="S, M, L"
-        [value]="form().sizes"
-        (input)="updateField('sizes', $any($event.target).value)"
-      >
-    </label>
-  </div>
-
-  @if (product === null) {
-    <label class="wide-label">
-      Product photos (up to 8, 5 MB each)
-      <input
-        name="productImages"
-        type="file"
-        multiple
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        (change)="selectImages($event)"
-      >
-    </label>
-    @if (selectedImages().length > 0) {
-      <p class="state-message">{{ selectedImages().length }} photo(s) selected.</p>
-    }
-    @if (imageError()) {
-      <p class="admin-message error" role="alert">{{ imageError() }}</p>
-    }
+  @if (product) {
+    <nav class="editor-tabs" aria-label="Product editor sections">
+      <button type="button" [class.active]="activeTab()==='general'" (click)="activeTab.set('general')">Details</button>
+      <button type="button" [class.active]="activeTab()==='variants'" (click)="activeTab.set('variants')">Variants</button>
+      <button type="button" [class.active]="activeTab()==='images'" (click)="activeTab.set('images')">Media</button>
+      <button type="button" [class.active]="activeTab()==='content'" (click)="activeTab.set('content')">Content</button>
+      <button type="button" [class.active]="activeTab()==='seo'" (click)="activeTab.set('seo')">Search listing</button>
+      <button type="button" [class.active]="activeTab()==='preview'" (click)="activeTab.set('preview')">Preview</button>
+    </nav>
   }
 
-  <label class="wide-label">
-    Description
-    <textarea
-      name="description"
-      rows="4"
-      [value]="form().description"
-      (input)="updateField('description', $any($event.target).value)"
-    ></textarea>
-  </label>
+  @if (!product || activeTab() === 'general') {
+    <form class="admin-form product-form-layout" (submit)="submit($event)">
+      <div class="product-form-main">
+        <article class="admin-card editor-card">
+          <header class="card-heading"><div><h3>Product information</h3><p>The customer-facing identity and description.</p></div></header>
+          <label>Title<input name="name" required autocomplete="off" [value]="form().name" (input)="updateField('name',$any($event.target).value)"></label>
+          <label>Description<textarea rows="8" [value]="form().description" (input)="updateField('description',$any($event.target).value)" placeholder="Describe the product, materials, and key details"></textarea></label>
+        </article>
 
-  <div class="toggle-row">
-    <label class="checkbox-label">
-      <input
-        name="inStock"
-        type="checkbox"
-        [checked]="form().inStock"
-        (change)="updateField('inStock', $any($event.target).checked)"
-      >
-      In stock
-    </label>
+        <article class="admin-card editor-card">
+          <header class="card-heading"><div><h3>Pricing</h3><p>Used as the default when new variants are created.</p></div></header>
+          <div class="form-grid compact-grid">
+            <label>Default price<div class="input-prefix"><span>€</span><input name="price" type="number" min="0" step="0.01" [value]="form().priceCents / 100" (input)="updatePriceEuros($any($event.target).value)"></div></label>
+            <label>Currency<input name="currency" maxlength="3" [value]="form().currency" (input)="updateField('currency',$any($event.target).value)"></label>
+          </div>
+          <p class="field-help">Individual variant prices remain editable in the Variants section.</p>
+        </article>
 
-    <label class="checkbox-label">
-      <input
-        name="active"
-        type="checkbox"
-        [checked]="form().active"
-        (change)="updateField('active', $any($event.target).checked)"
-      >
-      Visible in shop
-    </label>
-  </div>
+        <article class="admin-card editor-card">
+          <header class="card-heading"><div><h3>Customer details</h3><p>Optional information shown in the public product experience.</p></div></header>
+          <div class="form-grid compact-grid">
+            <label>Subtitle<input name="subtitle" [value]="form().subtitle" (input)="updateField('subtitle',$any($event.target).value)" placeholder="Short supporting line"></label>
+            <label>Badge<input name="badge" [value]="form().badge" (input)="updateField('badge',$any($event.target).value)" placeholder="e.g. New arrival"></label>
+          </div>
+          <label>Default delivery estimate<input name="delivery" [value]="form().deliveryEstimate" (input)="updateField('deliveryEstimate',$any($event.target).value)" placeholder="e.g. Ships in 2–4 business days"></label>
+        </article>
 
-  <div class="admin-actions">
-    <button type="submit" [disabled]="saving">
-      {{ product === null ? 'Create product' : 'Update product' }}
-    </button>
-  </div>
-</form>
+        @if (!product) {
+          <article class="admin-card editor-card media-drop-card">
+            <header class="card-heading"><div><h3>Media</h3><p>Add up to eight product photos now, or upload them after creation.</p></div></header>
+            <label class="file-drop"><span>Choose product photos</span><small>JPEG, PNG, WebP, or GIF · maximum 5 MB each</small><input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" (change)="selectImages($event)"></label>
+            @if (selectedImages().length) { <p class="selection-summary">{{ selectedImages().length }} photo{{ selectedImages().length === 1 ? '' : 's' }} selected</p> }
+            @if (imageError()) { <p class="admin-message error">{{ imageError() }}</p> }
+          </article>
+        }
+      </div>
+
+      <aside class="product-summary-column">
+        <article class="admin-card summary-card">
+          <h3>Status</h3>
+          <label class="visibility-control"><span><strong>Active</strong><small>Visible in the public catalog</small></span><input type="checkbox" [checked]="form().active" (change)="updateField('active',$any($event.target).checked)"></label>
+        </article>
+        <article class="admin-card summary-card">
+          <h3>Organization</h3>
+          <label>Category<input [value]="categoryName || 'Not selected'" disabled></label>
+          <label>URL handle<input name="slug" required [value]="form().slug" (input)="updateField('slug',$any($event.target).value)" (blur)="normalizeSlug()"></label>
+          <small class="field-help">/products/{{ form().slug || 'product-name' }}</small>
+        </article>
+        <article class="admin-card summary-card summary-overview">
+          <h3>Product summary</h3>
+          <dl><div><dt>Category</dt><dd>{{ categoryName || 'Unassigned' }}</dd></div><div><dt>Currency</dt><dd>{{ form().currency || 'EUR' }}</dd></div><div><dt>State</dt><dd>{{ form().active ? 'Active' : 'Draft' }}</dd></div></dl>
+        </article>
+      </aside>
+
+      <div class="sticky-save-bar" [class.visible]="dirty() || !product">
+        <div><span class="save-state-dot" aria-hidden="true"></span><strong>{{ dirty() ? 'Unsaved changes' : (product ? 'All changes saved' : 'New product draft') }}</strong></div>
+        <div class="save-actions">
+          @if (dirty() && product) { <button type="button" class="admin-secondary-button" (click)="discardChanges()">Discard</button> }
+          <button type="submit" class="admin-primary-button" [disabled]="saving || (!dirty() && !!product)">{{ saving ? 'Saving…' : (product ? 'Save changes' : 'Create product') }}</button>
+        </div>
+      </div>
+    </form>
+  }
+
+  @if (product && activeTab() === 'variants') { <section class="admin-card tab-panel combined-variant-workflow"><app-product-options-editor [productId]="product.id" [defaultPriceCents]="form().priceCents" (changed)="refreshVariants()"/><app-product-variant-matrix [productId]="product.id" [productSlug]="product.slug" [focusVariantId]="focusVariantId" (changed)="catalogChanged.emit()"/></section> }
+  @if (product && activeTab() === 'images') { <section class="admin-card tab-panel"><app-product-card-images-editor [product]="product" (productChanged)="productChanged.emit($event)" /></section> }
+  @if (product && activeTab() === 'content') { <section class="admin-card tab-panel"><div class="card-heading"><div><h3>Store benefits</h3><p>Add one concise customer benefit per line.</p></div></div><label>Benefits<textarea rows="7" [value]="form().benefits" (input)="updateField('benefits',$any($event.target).value)"></textarea></label><button type="button" class="admin-primary-button" (click)="submit($any($event))">Save content</button></section> }
+  @if (product && activeTab() === 'seo') { <section class="admin-card tab-panel"><div class="card-heading"><div><h3>Search engine listing</h3><p>Preview how this product URL is structured.</p></div></div><div class="search-preview"><span>Built by Grain</span><strong>{{ product.name }}</strong><small>/products/{{ product.slug }}</small><p>{{ product.description || 'Add a product description to improve this listing.' }}</p></div></section> }
+  @if (product && activeTab() === 'preview') { <section class="admin-card tab-panel preview-card"><span aria-hidden="true">↗</span><h3>Review the customer experience</h3><p>Verify product options, pricing, availability, and images in the public shop.</p><a class="admin-primary-link" [href]="'/products/' + product.slug" target="_blank">Open product page</a></section> }
+</section>

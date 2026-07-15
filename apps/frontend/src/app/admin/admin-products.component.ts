@@ -1,10 +1,11 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
-import { AdminAuthService } from './admin-auth.service';
-import { AdminImageUploadComponent } from './admin-image-upload.component';
+import { Component, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { ActivatedRoute, CanDeactivateFn, Router } from '@angular/router';
 import { AdminProductFormComponent } from './admin-product-form.component';
-import { AdminProductListComponent } from './admin-product-list.component';
 import { Product, ProductRequest, ProductService } from '../product.service';
+import { CatalogTreeComponent } from './catalog-tree.component';
+import { AdminCatalogService, CatalogTreeNode, CategoryDetails, CategoryRequest } from './admin-catalog.service';
+import { CategoryEditorComponent } from './category-editor.component';
+import { AdminProductListComponent } from './admin-product-list.component';
 
 type AdminProductsState = 'loading' | 'ready' | 'error';
 type AdminActionState = 'idle' | 'saving' | 'success' | 'error';
@@ -12,26 +13,39 @@ type AdminActionState = 'idle' | 'saving' | 'success' | 'error';
 @Component({
   selector: 'app-admin-products',
   imports: [
-    AdminImageUploadComponent,
     AdminProductFormComponent,
+    CatalogTreeComponent,
+    CategoryEditorComponent,
     AdminProductListComponent
   ],
   templateUrl: './admin-products.component.html'
 })
 export class AdminProductsComponent implements OnInit {
-  private readonly authService = inject(AdminAuthService);
   private readonly productService = inject(ProductService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly catalog = inject(AdminCatalogService);
+  @ViewChild(CatalogTreeComponent) protected tree?:CatalogTreeComponent;
+  @ViewChild(AdminProductFormComponent) private productForm?: AdminProductFormComponent;
 
   protected readonly products = signal<Product[]>([]);
   protected readonly selectedProduct = signal<Product | null>(null);
+  protected readonly selectedNode=signal<CatalogTreeNode|null>(null);
+  protected readonly selectedCategory=signal<CategoryDetails|null>(null);
+  protected readonly categories=signal<CategoryDetails[]>([]);
+  protected readonly editorMode=signal<'empty'|'category'|'product'>('empty');
+  protected readonly creatingCategory=signal(false);
+  protected readonly categoryParentId=signal<number|null>(null);
+  protected readonly productCategoryId=signal<number|null>(null);
+  protected readonly selectedVariantId=signal<number|null>(null);
   protected readonly productsState = signal<AdminProductsState>('loading');
   protected readonly actionState = signal<AdminActionState>('idle');
   protected readonly message = signal('');
-  protected readonly adminUsername = this.authService.getUsername() ?? 'admin';
+  protected readonly workspace = this.route.snapshot.data['workspace'] === 'categories' ? 'categories' : 'products';
 
   ngOnInit(): void {
     this.loadProducts();
+    this.loadCategories();
   }
 
   protected loadProducts(): void {
@@ -58,14 +72,51 @@ export class AdminProductsComponent implements OnInit {
 
   protected newProduct(): void {
     this.selectedProduct.set(null);
+    this.productCategoryId.set(this.categories()[0]?.id ?? null);
+    this.editorMode.set('product');
     this.actionState.set('idle');
     this.message.set('');
   }
 
+  protected selectCatalogNode(node: CatalogTreeNode): void {
+    this.selectedNode.set(node);
+    if(node.nodeType==='CATEGORY'){const id=this.nodeId(node);this.catalog.category(id).subscribe({next:c=>{this.selectedCategory.set(c);this.creatingCategory.set(false);this.editorMode.set('category');}});return;}
+    if (node.nodeType === 'PRODUCT') {
+      this.selectedVariantId.set(null);
+      const id = Number(node.id.split(':')[1]);
+      const product = this.products().find(item => item.id === id);
+      if (product) {this.editProduct(product);this.productCategoryId.set(product.categoryId);this.editorMode.set('product');}
+    } else if (node.nodeType === 'VARIANT' && node.parentId) {
+      this.selectedVariantId.set(this.nodeId(node));
+      const id = Number(node.parentId.split(':')[1]);
+      const product = this.products().find(item => item.id === id);
+      if (product) {this.editProduct(product);this.productCategoryId.set(product.categoryId);this.editorMode.set('product');}
+    }
+  }
+
+  protected handleTreeAction(event:{action:string;node:CatalogTreeNode|null}):void{
+    const node=event.node;
+    if(event.action==='add-root'){this.openCategoryCreate(null);return;}
+    if(!node)return;
+    if(event.action==='add-child'&&node.nodeType==='CATEGORY'){this.openCategoryCreate(this.nodeId(node));return;}
+    if(event.action==='add-product'&&node.nodeType==='CATEGORY'){this.productCategoryId.set(this.nodeId(node));this.selectedProduct.set(null);this.editorMode.set('product');return;}
+    if(event.action==='rename'){this.selectCatalogNode(node);return;}
+    if(event.action==='move'){this.moveSelected(node);return;}
+    if(event.action==='toggle-status'){this.toggleStatus(node);return;}
+    if(event.action==='delete'&&node.nodeType==='CATEGORY')this.deleteSelectedCategory();
+    if(event.action==='archive'&&node.nodeType==='PRODUCT'){const p=this.products().find(x=>x.id===this.nodeId(node));if(p)this.productService.deactivateProduct(p.id).subscribe({next:updated=>{this.handleProductChanged(updated,'Product archived.');}});}
+  }
+
+  protected saveCategory(request:CategoryRequest):void{this.actionState.set('saving');const current=this.creatingCategory()?null:this.selectedCategory();const action=current?this.catalog.updateCategory(current.id,request):this.catalog.createCategory(request);action.subscribe({next:c=>{this.selectedCategory.set(c);this.creatingCategory.set(false);this.actionState.set('success');this.message.set(current?'Category updated.':'Category created.');this.loadCategories();this.tree?.reload();},error:e=>this.handleAdminError(e,'Category could not be saved.')});}
+  protected cancelCategory():void{if(this.selectedCategory()){this.creatingCategory.set(false);}else this.editorMode.set('empty');}
+  protected deleteSelectedCategory():void{const c=this.selectedCategory();if(!c||!globalThis.confirm(`Delete ${c.name}? Categories with products cannot be deleted.`))return;this.catalog.deleteCategory(c.id).subscribe({next:()=>{this.selectedCategory.set(null);this.editorMode.set('empty');this.message.set('Category deleted.');this.loadCategories();this.tree?.reload();},error:e=>this.handleAdminError(e,'Category contains products or child categories. Deactivate it instead.')});}
+
   protected saveProduct(event: { request: ProductRequest; images: File[] }): void {
     const selectedProduct = this.selectedProduct();
     const action = selectedProduct === null
-      ? this.productService.createProductWithImages(event.request, event.images)
+      ? event.images.length > 0
+        ? this.productService.createProductWithImages(event.request, event.images)
+        : this.productService.createProduct(event.request)
       : this.productService.updateProduct(selectedProduct.id, event.request);
 
     this.actionState.set('saving');
@@ -77,6 +128,7 @@ export class AdminProductsComponent implements OnInit {
         this.actionState.set('success');
         this.message.set(selectedProduct === null ? 'Product created.' : 'Product updated.');
         this.loadProducts();
+        this.tree?.reload();
       },
       error: (error) => {
         this.handleAdminError(error, 'Product could not be saved.');
@@ -122,16 +174,55 @@ export class AdminProductsComponent implements OnInit {
       error: (error) => this.handleAdminError(error, 'Image could not be removed.')
     });
   }
+  protected duplicateCurrent():void{const p=this.selectedProduct();if(!p)return;this.productService.duplicateProduct(p.id).subscribe({next:copy=>{this.handleProductChanged(copy,'Product duplicated.');this.editProduct(copy);this.editorMode.set('product');}});}
+  protected archiveCurrent():void{const p=this.selectedProduct();if(!p||!confirm(`Archive ${p.name}?`))return;this.productService.deactivateProduct(p.id).subscribe({next:u=>this.handleProductChanged(u,'Product archived.')});}
+  protected currentCategoryName():string{return this.selectedProduct()?.categoryName??this.categories().find(c=>c.id===this.productCategoryId())?.name??'';}
 
-  protected logout(): void {
-    this.authService.logout();
-    void this.router.navigate(['/admin/login']);
+  protected resetCatalog(): void {
+    const confirmation = globalThis.prompt(
+      'This permanently deletes every product, variant, size, color, and category. Uploaded files stay on disk.\n\nType RESET CATALOG to continue:'
+    );
+    if (confirmation !== 'RESET CATALOG') {
+      if (confirmation !== null) {
+        this.actionState.set('error');
+        this.message.set('Catalog reset cancelled: the confirmation text did not match.');
+      }
+      return;
+    }
+
+    this.actionState.set('saving');
+    this.message.set('Resetting catalog…');
+    this.catalog.resetCatalog(confirmation).subscribe({
+      next: result => {
+        this.products.set([]);
+        this.selectedProduct.set(null);
+        this.selectedNode.set(null);
+        this.selectedCategory.set(null);
+        this.categories.set([]);
+        this.selectedVariantId.set(null);
+        this.productCategoryId.set(null);
+        this.creatingCategory.set(false);
+        this.editorMode.set('empty');
+        this.productsState.set('ready');
+        this.actionState.set('success');
+        this.message.set(
+          `Catalog reset: ${result.productsDeleted} products, ${result.variantsDeleted} variants, and ${result.categoriesDeleted} categories deleted. Create a root category to begin again.`
+        );
+        this.tree?.reload();
+      },
+      error: error => this.handleAdminError(error, 'Catalog could not be reset.')
+    });
+  }
+
+  public hasUnsavedChanges(): boolean {
+    return this.productForm?.hasUnsavedChanges() ?? false;
   }
 
   private handleAdminError(error: unknown, fallback: string): void {
-    if (this.isUnauthorized(error)) {
-      this.authService.logout();
-      void this.router.navigate(['/admin/login']);
+    if (this.requiresAdminLogin(error)) {
+      void this.router.navigate(['/admin/login'], {
+        queryParams: { reason: 'admin-required' }
+      });
       return;
     }
 
@@ -139,7 +230,7 @@ export class AdminProductsComponent implements OnInit {
     this.message.set(this.describeAdminError(error, fallback));
   }
 
-  private isUnauthorized(error: unknown): boolean {
+  private requiresAdminLogin(error: unknown): boolean {
     if (typeof error === 'object' && error !== null && 'status' in error) {
       const status = Number((error as { status: unknown }).status);
       return status === 401 || status === 403;
@@ -161,4 +252,13 @@ export class AdminProductsComponent implements OnInit {
 
     return fallback;
   }
+  private loadCategories():void{this.catalog.categories().subscribe({next:items=>this.categories.set(items)});}
+  private openCategoryCreate(parentId:number|null):void{this.selectedCategory.set(null);this.categoryParentId.set(parentId);this.creatingCategory.set(true);this.editorMode.set('category');}
+  private nodeId(node:CatalogTreeNode):number{return Number(node.id.split(':')[1]);}
+  private moveSelected(node:CatalogTreeNode):void{const choices=this.categories().filter(c=>c.id!==this.nodeId(node));const label=choices.map(c=>`${c.id}: ${c.name}`).join('\n');const value=globalThis.prompt(`Move to category ID (blank for top level):\n${label}`);if(value===null)return;const target=value.trim()?Number(value):null;if(node.nodeType==='CATEGORY')this.catalog.moveCategory(this.nodeId(node),target,0).subscribe({next:()=>{this.message.set('Category moved.');this.tree?.reload();this.loadCategories();},error:e=>this.handleAdminError(e,'Category could not be moved.')});else if(node.nodeType==='PRODUCT'&&target)this.productService.moveProduct(this.nodeId(node),target).subscribe({next:p=>this.handleProductChanged(p,'Product moved.'),error:e=>this.handleAdminError(e,'Product could not be moved.')});}
+  private toggleStatus(node:CatalogTreeNode):void{const active=node.status==='ACTIVE';if(node.nodeType==='CATEGORY')this.catalog.setCategoryStatus(this.nodeId(node),!active).subscribe({next:c=>{this.selectedCategory.set(c);this.message.set(`Category ${c.active?'activated':'deactivated'}.`);this.tree?.reload();},error:e=>this.handleAdminError(e,'Status could not be changed.')});else{const p=this.products().find(x=>x.id===this.nodeId(node));if(!p)return;(p.active?this.productService.deactivateProduct(p.id):this.productService.activateProduct(p.id)).subscribe({next:u=>this.handleProductChanged(u,`Product ${u.active?'activated':'archived'}.`)});}}
+  private handleProductChanged(product:Product,message:string):void{this.selectedProduct.set(product);this.message.set(message);this.loadProducts();this.tree?.reload();}
 }
+
+export const unsavedAdminChangesGuard: CanDeactivateFn<AdminProductsComponent> = component =>
+  !component.hasUnsavedChanges() || globalThis.confirm('Discard your unsaved product changes and leave this page?');

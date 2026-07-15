@@ -36,7 +36,7 @@
   <section class="products-section" aria-labelledby="products-title">
     <div class="section-heading">
       <p class="eyebrow">Shop preview</p>
-      <h2 id="products-title">Available products</h2>
+      <h2 id="products-title">{{ selectedCategory()?.name || 'Available products' }}</h2>
     </div>
 
     @if (productState() === 'loading') {
@@ -47,72 +47,11 @@
         <button type="button" (click)="loadProducts()">Try again</button>
       </div>
     } @else if (products().length === 0) {
-      <p class="state-message">No active products are available yet.</p>
+      <p class="state-message">No active products are available{{ selectedCategory() ? ' in ' + selectedCategory()!.name : '' }}.</p>
     } @else {
       <div class="product-grid">
         @for (product of products(); track product.id) {
-          <article class="product-card clickable-card" tabindex="0" [attr.aria-label]="'View ' + product.name"
-            (click)="openProduct(product)" (keydown)="handleCardKey($event, product)">
-            <div class="product-gallery">
-              <a [routerLink]="['/products', product.slug]" (click)="$event.stopPropagation()">
-                <img [src]="selectedImage(product)" [alt]="product.name + ' photo ' + (selectedImageIndex(product) + 1)" class="product-image">
-              </a>
-              @if (product.imageUrls.length > 1) {
-                <button
-                  type="button"
-                  class="gallery-arrow gallery-arrow-previous"
-                  [attr.aria-label]="'Previous photo of ' + product.name"
-                  (click)="$event.stopPropagation(); previousImage(product)"
-                >&#8249;</button>
-                <button
-                  type="button"
-                  class="gallery-arrow gallery-arrow-next"
-                  [attr.aria-label]="'Next photo of ' + product.name"
-                  (click)="$event.stopPropagation(); nextImage(product)"
-                >&#8250;</button>
-                <span class="gallery-counter">
-                  {{ selectedImageIndex(product) + 1 }} / {{ product.imageUrls.length }}
-                </span>
-              }
-            </div>
-            @if (product.imageUrls.length > 1) {
-              <div class="product-thumbnails" [attr.aria-label]="product.name + ' photos'">
-                @for (imageUrl of product.imageUrls; track imageUrl; let index = $index) {
-                  <button
-                    type="button"
-                    class="thumbnail-button"
-                    [class.selected]="selectedImageIndex(product) === index"
-                    [attr.aria-label]="'Show photo ' + (index + 1) + ' of ' + product.name"
-                    [attr.aria-pressed]="selectedImageIndex(product) === index"
-                    (click)="$event.stopPropagation(); selectImage(product, index)"
-                  >
-                    <img [src]="imageUrl" alt="">
-                  </button>
-                }
-              </div>
-            }
-            <div class="product-body">
-              <div>
-                <h3><a [routerLink]="['/products', product.slug]" (click)="$event.stopPropagation()">{{ product.name }}</a></h3>
-                <p>{{ shortDescription(product) }}</p>
-              </div>
-              <div class="product-meta">
-                @if (product.sizes.length > 0) {
-                  <span>Sizes: {{ product.sizes.join(', ') }}</span>
-                }
-                <span [class.out-of-stock]="!product.inStock">
-                  {{ product.inStock ? 'In stock' : 'Out of stock' }}
-                </span>
-              </div>
-              <div class="product-footer">
-                <p class="price">{{ formatPrice(product) }}</p>
-                <button type="button" class="add-button" [disabled]="!product.active || !product.inStock"
-                  (click)="addToBag($event, product)">
-                  {{ product.inStock ? (addedProductId() === product.id ? 'Added' : 'Add to bag') : 'Unavailable' }}
-                </button>
-              </div>
-            </div>
-          </article>
+          <app-product-card [product]="product" (add)="addToBag($event)" />
         }
       </div>
     }

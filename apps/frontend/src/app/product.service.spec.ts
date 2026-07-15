@@ -20,4 +20,21 @@ describe('ProductService', () => {
     expect(request.request.method).toBe('GET');
     request.flush({});
   });
+
+  it('creates a product through its selected category endpoint', () => {
+    const service = TestBed.inject(ProductService);
+    const product = {
+      name: 'Oak shelf', slug: 'oak-shelf', description: null,
+      priceCents: 4900, currency: 'EUR', inStock: true,
+      sizes: [], active: true, categoryId: 12
+    };
+
+    service.createProduct(product).subscribe();
+
+    const request = TestBed.inject(HttpTestingController)
+      .expectOne('/api/admin/categories/12/products');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(product);
+    request.flush({});
+  });
 });

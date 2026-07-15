@@ -1,56 +1,60 @@
-<main class="shop-page">
+<main class="product-page">
   <app-shop-navigation />
+  @if (state() === 'loading') { <section class="product-state" aria-live="polite"><mat-spinner diameter="34"/><p>Preparing the product…</p></section> }
+  @else if (state() === 'not-found') { <section class="product-state"><p class="eyebrow">Nothing here</p><h1>Product not found</h1><p>This piece is no longer available.</p><a mat-flat-button routerLink="/">Return to the collection</a></section> }
+  @else if (state() === 'error') { <section class="product-state" role="alert"><h1>We could not load this product</h1><button mat-flat-button type="button" (click)="loadProduct()">Try again</button></section> }
+  @else if (product(); as item) {
+    <nav class="product-breadcrumb" aria-label="Breadcrumb"><a routerLink="/">Shop</a><span>/</span><a routerLink="/" [queryParams]="{category: item.categorySlug}">{{ item.categoryName }}</a><span>/</span><span>{{ item.name }}</span></nav>
+    <section class="product-layout">
+      <app-product-gallery [images]="displayImages()" [productName]="item.name" [selectedIndex]="selectedImageIndex()" (select)="selectImage($event)" (zoom)="openModal()" />
 
-  @if (state() === 'loading') {
-    <section class="content-panel state-panel" aria-live="polite"><p>Loading product...</p></section>
-  } @else if (state() === 'not-found') {
-    <section class="content-panel state-panel">
-      <h1>Product not found</h1>
-      <p>This product is unavailable or no longer part of the active collection.</p>
-      <a routerLink="/" class="text-link">Return to the shop</a>
-    </section>
-  } @else if (state() === 'error') {
-    <section class="content-panel state-panel" role="alert">
-      <h1>We could not load this product</h1>
-      <p>Please try again.</p>
-      <button type="button" (click)="loadProduct()">Try again</button>
-    </section>
-  } @else if (product(); as item) {
-    <section class="content-panel product-detail">
-      <div class="detail-gallery">
-        <img class="detail-image" [src]="images(item)[selectedImageIndex()]" [alt]="item.name + ' photo'">
-        @if (images(item).length > 1) {
-          <div class="detail-thumbnails" aria-label="Product images">
-            @for (image of images(item); track image; let index = $index) {
-              <button type="button" class="thumbnail-button" [class.selected]="index === selectedImageIndex()"
-                [attr.aria-label]="'Show photo ' + (index + 1)" (click)="selectImage(index)">
-                <img [src]="image" alt="">
-              </button>
-            }
+      <aside class="purchase-panel" aria-label="Product purchase options">
+        <div class="purchase-heading">
+          <div>
+            @if (item.configuration.rating; as rating) { <p class="rating" [attr.aria-label]="rating.average + ' out of 5 stars from ' + rating.count + ' reviews'"><span aria-hidden="true">★★★★★</span><a href="#reviews">{{ rating.average }} · {{ rating.count }} reviews</a></p> }
+            @if (item.configuration.badge) { <mat-chip>{{ item.configuration.badge }}</mat-chip> }
+            <h1>{{ item.name }}</h1>
+            @if (item.configuration.subtitle) { <p class="subtitle">{{ item.configuration.subtitle }}</p> }
           </div>
-        }
-      </div>
-      <div class="detail-copy">
-        <p class="eyebrow">Built by Grain</p>
-        <h1>{{ item.name }}</h1>
-        <p class="detail-price">{{ formatPrice(item) }}</p>
-        <p class="availability" [class.out-of-stock]="!item.inStock">
-          {{ item.inStock ? 'In stock and available' : 'Currently unavailable' }}
-        </p>
-        <p class="detail-description">{{ item.description || 'Handcrafted wooden product from Built by Grain.' }}</p>
-        @if (item.sizes.length > 0) { <p class="detail-meta">Available sizes: {{ item.sizes.join(', ') }}</p> }
-        <div class="purchase-row">
-          <div class="quantity-control" aria-label="Quantity selector">
-            <button type="button" (click)="changeQuantity(-1)" [disabled]="quantity() === 1" aria-label="Decrease quantity">−</button>
-            <span aria-live="polite">{{ quantity() }}</span>
-            <button type="button" (click)="changeQuantity(1)" [disabled]="quantity() === 99" aria-label="Increase quantity">+</button>
-          </div>
-          <button type="button" class="add-button" [disabled]="!item.active || !item.inStock" (click)="addToBag(item)">
-            {{ item.inStock ? 'Add to bag' : 'Unavailable' }}
-          </button>
+          <button mat-icon-button type="button" class="wishlist-button" (click)="toggleWishlist(item.id)" [attr.aria-pressed]="isWishlisted(item.id)" [matTooltip]="isWishlisted(item.id) ? 'Remove from wishlist' : 'Save to wishlist'">{{ isWishlisted(item.id) ? '♥' : '♡' }}</button>
         </div>
-        @if (addedMessage()) { <p class="cart-feedback" aria-live="polite">{{ addedMessage() }}</p> }
-      </div>
+
+        @if (item.configuration.benefits.length) { <div class="benefit-grid">@for (benefit of item.configuration.benefits.slice(0, 3); track benefit; let i = $index) { <div><span class="benefit-icon" aria-hidden="true">{{ i === 0 ? '◇' : i === 1 ? '⌁' : '✓' }}</span><strong>{{ benefit }}</strong></div> }</div> }
+
+        @if (item.description) { <mat-expansion-panel class="compatibility-panel"><mat-expansion-panel-header><mat-panel-title>About this piece</mat-panel-title></mat-expansion-panel-header><p>{{ item.description }}</p></mat-expansion-panel> }
+
+        @for (option of item.configuration.options; track option.id) {
+          <fieldset class="option-group"><legend><strong>{{ option.name }}</strong> <span>{{ option.displayType === 'COLOR_SWATCH' ? displayedColorName(option) : selectedOptionLabel(option) }}</span></legend>
+            @if (option.displayType === 'DROPDOWN') { <mat-form-field appearance="outline"><mat-label>Select {{ option.name }}</mat-label><mat-select [value]="selectedValues()[option.id] || ''" (selectionChange)="selectOption(option, $event.value)">@for (value of option.values; track value.id) { <mat-option [value]="value.id" [disabled]="!isValuePossible(option.id, value.id)">{{ value.label }}</mat-option> }</mat-select></mat-form-field> }
+            @else if (option.displayType === 'COLOR_SWATCH') { <div class="swatch-grid">@for (value of option.values; track value.id) { <button type="button" class="swatch-button" [class.selected]="selectedValues()[option.id] === value.id" [class.unavailable]="!isValuePossible(option.id, value.id)" [disabled]="!isValuePossible(option.id, value.id)" [attr.aria-pressed]="selectedValues()[option.id] === value.id" [attr.aria-label]="option.name + ': ' + value.label + (selectedValues()[option.id] === value.id ? ', selected' : '') + (!isValuePossible(option.id, value.id) ? ', unavailable' : '')" (pointerenter)="previewColor(value.label)" (pointerleave)="previewColor(null)" (focus)="previewColor(value.label)" (blur)="previewColor(null)" (click)="selectOption(option, value.id)"><span class="swatch-color" [style.background-color]="value.swatchColor || '#d8d3ca'"></span><span class="swatch-state" aria-hidden="true">{{ selectedValues()[option.id] === value.id ? '✓' : '' }}</span></button> }</div> }
+            @else { <div class="size-grid">@for (value of option.values; track value.id) { <button type="button" class="size-option" [class.selected]="selectedValues()[option.id] === value.id" [disabled]="!isValuePossible(option.id, value.id)" [attr.aria-pressed]="selectedValues()[option.id] === value.id" (click)="selectOption(option, value.id)"><strong>{{ value.label }}</strong>@if (value.additionalInformation) { <span>{{ value.additionalInformation }}</span> }</button> }</div> }
+          </fieldset>
+        }
+
+        <mat-divider/>
+        <div class="price-stock-row">
+          <p class="availability" [class.out-of-stock]="selectedVariant() && !selectedVariant()!.available"><span></span>{{ stockMessage(selectedVariant()) }}</p>
+          @if (selectedVariant(); as variant) { <div class="price-block">@if (variant.salePriceCents) { <s>{{ format(variant.priceCents, item.currency) }}</s><strong>{{ format(variant.salePriceCents, item.currency) }}</strong> } @else { <strong>{{ format(variant.priceCents, item.currency) }}</strong> }@if (item.configuration.unitPriceLabel) { <small>{{ item.configuration.unitPriceLabel }}</small> }</div> }
+        </div>
+        @if (selectedVariant()?.deliveryEstimate || item.configuration.deliveryEstimate) { <mat-card class="delivery-notice" appearance="outlined"><mat-card-content><strong>Made ready for you</strong><p>{{ selectedVariant()?.deliveryEstimate || item.configuration.deliveryEstimate }}</p></mat-card-content></mat-card> }
+        <div class="purchase-actions">
+          <div class="quantity-control" aria-label="Quantity selector">
+            <button type="button" (click)="changeQuantity(-1)" [disabled]="quantity() === 1 || adding()" aria-label="Decrease quantity"><span aria-hidden="true">−</span></button>
+            <output [attr.aria-label]="'Quantity: ' + quantity()">{{ quantity() }}</output>
+            <button type="button" (click)="changeQuantity(1)" [disabled]="quantity() === maxQuantity() || adding()" aria-label="Increase quantity"><span aria-hidden="true">+</span></button>
+          </div>
+          <button type="button" class="add-button" [disabled]="!selectedVariant()?.available || adding()" (click)="addToBag(item)">{{ adding() ? 'Adding…' : 'Add to bag' }}</button>
+        </div>
+        <p class="cart-feedback" aria-live="polite">{{ message() }}</p>
+
+        <mat-card class="reassurance-card" appearance="outlined"><mat-card-content><div><span>↗</span><strong>Complimentary delivery</strong><small>On orders over €75</small></div><div><span>□</span><strong>Thoughtfully packed</strong><small>Dispatched with care</small></div><div><span>✓</span><strong>Secure payment</strong><small>Protected checkout</small></div></mat-card-content></mat-card>
+
+        @if (recommendations().length) { <section class="recommendations" aria-labelledby="recommendations-title"><p class="eyebrow">Pair it with</p><h2 id="recommendations-title">Complete the setting</h2>@for (recommended of recommendations(); track recommended.id) { <app-product-card [product]="recommended" (add)="addRecommended($event)" /> }</section> }
+      </aside>
     </section>
+
+    @if (item.configuration.specifications | keyvalue; as specs) { @if (specs.length || item.configuration.sections.length || item.configuration.faqs.length) { <section class="product-information"><p class="eyebrow">The details</p><h2>Designed to live with</h2><div class="information-grid">@if (specs.length) { <article><h3>Specifications</h3><dl>@for (spec of specs; track spec.key) { <div><dt>{{ spec.key }}</dt><dd>{{ spec.value }}</dd></div> }</dl></article> }@for (section of item.configuration.sections; track section.id) { <article [id]="section.id"><h3>{{ section.heading }}</h3><p>{{ section.content }}</p></article> }@if (item.configuration.faqs.length) { <article><h3>Questions, answered</h3>@for (faq of item.configuration.faqs; track faq.question) { <details><summary>{{ faq.question }}</summary><p>{{ faq.answer }}</p></details> }</article> }</div></section> } }
+    <div class="mobile-purchase-bar"><div><strong>{{ selectedVariant() ? format(selectedVariant()!.salePriceCents || selectedVariant()!.priceCents, item.currency) : item.name }}</strong><span>{{ variantSummary() || item.name }}</span></div><button mat-flat-button type="button" [disabled]="!selectedVariant()?.available" (click)="addToBag(item)">Add to bag</button></div>
+    @if (modalOpen()) { <div class="image-modal" role="dialog" aria-modal="true" aria-label="Product image viewer" (click)="closeModal()"><button type="button" class="modal-close" (click)="closeModal()" aria-label="Close image viewer">×</button><img [src]="displayImages()[selectedImageIndex()]" [alt]="item.name + ' enlarged'" (click)="$event.stopPropagation()"></div> }
   }
 </main>

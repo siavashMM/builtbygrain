@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Product } from '../product.service';
+import { ProductVariant } from '../product.service';
 
 export interface CartItem {
   productId: number;
@@ -10,6 +11,8 @@ export interface CartItem {
   priceCents: number;
   currency: string;
   quantity: number;
+  variantId: string;
+  variantSummary?: string;
 }
 
 const STORAGE_KEY = 'builtbygrain.guest-cart';
@@ -27,12 +30,14 @@ export class CartService {
     this.cartItems().reduce((subtotal, item) => subtotal + item.priceCents * item.quantity, 0)
   );
 
-  addProduct(product: Product, quantity = 1): boolean {
-    if (!product.active || !product.inStock || !this.isValidQuantity(quantity)) {
+  addProduct(product: Product, quantity = 1, variant?: ProductVariant, variantSummary?: string): boolean {
+    const selected = variant ?? product.configuration?.variants?.[0];
+    if (!product.active || !product.inStock || !selected?.available || !this.isValidQuantity(quantity) ||
+        (selected.stockQuantity != null && !selected.backorderAllowed && !selected.preorderAllowed && quantity > selected.stockQuantity)) {
       return false;
     }
 
-    const existing = this.cartItems().find((item) => item.productId === product.id);
+    const existing = this.cartItems().find((item) => item.productId === product.id && item.variantId === selected.id);
     const nextQuantity = (existing?.quantity ?? 0) + quantity;
     if (!this.isValidQuantity(nextQuantity)) {
       return false;
@@ -42,37 +47,39 @@ export class CartService {
       productId: product.id,
       slug: product.slug,
       name: product.name,
-      imageUrl: product.imageUrl ?? product.imageUrls[0] ?? null,
-      priceCents: product.priceCents,
+      imageUrl: selected.imageUrls?.[0] ?? product.imageUrl ?? product.imageUrls[0] ?? null,
+      priceCents: selected.salePriceCents ?? selected.priceCents,
       currency: product.currency,
-      quantity: nextQuantity
+      quantity: nextQuantity,
+      variantId: selected.id,
+      variantSummary
     };
     this.commit(existing
-      ? this.cartItems().map((current) => current.productId === product.id ? item : current)
+      ? this.cartItems().map((current) => current.productId === product.id && current.variantId === selected.id ? item : current)
       : [...this.cartItems(), item]);
     return true;
   }
 
-  setQuantity(productId: number, quantity: number): boolean {
-    if (!this.isValidQuantity(quantity) || !this.cartItems().some((item) => item.productId === productId)) {
+  setQuantity(productId: number, quantity: number, variantId?: string): boolean {
+    if (!this.isValidQuantity(quantity) || !this.cartItems().some((item) => item.productId === productId && (!variantId || item.variantId === variantId))) {
       return false;
     }
-    this.commit(this.cartItems().map((item) => item.productId === productId ? { ...item, quantity } : item));
+    this.commit(this.cartItems().map((item) => item.productId === productId && (!variantId || item.variantId === variantId) ? { ...item, quantity } : item));
     return true;
   }
 
-  increase(productId: number): boolean {
-    const item = this.cartItems().find((candidate) => candidate.productId === productId);
-    return item ? this.setQuantity(productId, item.quantity + 1) : false;
+  increase(productId: number, variantId?: string): boolean {
+    const item = this.cartItems().find((candidate) => candidate.productId === productId && (!variantId || candidate.variantId === variantId));
+    return item ? this.setQuantity(productId, item.quantity + 1, variantId) : false;
   }
 
-  decrease(productId: number): boolean {
-    const item = this.cartItems().find((candidate) => candidate.productId === productId);
-    return item ? this.setQuantity(productId, item.quantity - 1) : false;
+  decrease(productId: number, variantId?: string): boolean {
+    const item = this.cartItems().find((candidate) => candidate.productId === productId && (!variantId || candidate.variantId === variantId));
+    return item ? this.setQuantity(productId, item.quantity - 1, variantId) : false;
   }
 
-  remove(productId: number): void {
-    this.commit(this.cartItems().filter((item) => item.productId !== productId));
+  remove(productId: number, variantId?: string): void {
+    this.commit(this.cartItems().filter((item) => item.productId !== productId || (!!variantId && item.variantId !== variantId)));
   }
 
   clear(): void {
@@ -113,6 +120,7 @@ export class CartService {
       && candidate.priceCents >= 0
       && typeof candidate.currency === 'string'
       && typeof candidate.quantity === 'number'
+      && typeof candidate.variantId === 'string'
       && this.isValidQuantity(candidate.quantity);
   }
 }

@@ -1,0 +1,44 @@
+<section class="simple-variant-editor" aria-labelledby="variants-title">
+  <div class="simple-step-heading">
+    <span>2</span>
+    <div><h3 id="variants-title">Review every size and color combination</h3><p>Turn off Produced to keep a combination but hide it from customers, or remove it permanently. Enter the price, private available quantity, and correct photo for produced variants.</p></div>
+  </div>
+
+  @if (message()) { <p class="admin-message" aria-live="polite">{{ message() }}</p> }
+
+  @if (rows.length) {
+    <div class="simple-variant-list">
+      @for (rowGroup of rows.controls; track rowGroup.controls['id'].value; let index = $index) {
+        <article [formGroup]="row(index)" [class.focus-row]="focusVariantId === rowGroup.controls['id'].value" [class.excluded-variant]="!rowGroup.controls['produced'].value">
+          <div class="variant-identity">
+            @if (variants()[index]?.primaryImageUrl; as photo) { <img [src]="photo" alt=""> } @else { <div class="photo-placeholder" aria-hidden="true">No photo</div> }
+            <strong>{{ rowGroup.controls['label'].value }}</strong>
+          </div>
+          <label class="produced-toggle"><input type="checkbox" formControlName="produced"><span><strong>Produced</strong><small>Turn off to keep but hide this combination</small></span></label>
+          <label>Price (€)<input type="number" min="0" step="0.01" formControlName="priceEuros" [disabled]="!rowGroup.controls['produced'].value"></label>
+          <label>Available units <input type="number" min="0" step="1" formControlName="stockQuantity" [disabled]="!rowGroup.controls['produced'].value"><small>Private—customers never see this number.</small></label>
+          <button type="button" class="secondary-button" [disabled]="!rowGroup.controls['produced'].value" (click)="openImages(index)">{{ variants()[index]?.primaryImageUrl ? 'Change photo' : 'Choose photo' }}</button>
+          <button type="button" (click)="saveRow(index)">Save</button>
+          <button type="button" class="danger-button" (click)="deleteVariant(index)">Remove variant</button>
+        </article>
+      }
+    </div>
+    <div class="variant-save-bar"><button type="button" (click)="saveAll()">Save all changes</button></div>
+  } @else {
+    <p class="state-message">Add at least one size and one color above. All combinations will appear here automatically.</p>
+  }
+
+  @if (imageVariant(); as variant) {
+    <div class="image-assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="image-dialog-title">
+      <div class="dialog-card simple-photo-dialog">
+        <header><div><h3 id="image-dialog-title">Photo for {{ variant.label }}</h3><p>Choose the main photo customers see for this selection.</p></div><button type="button" class="secondary-button" (click)="imageVariant.set(null)">Close</button></header>
+        <div class="dialog-upload"><label>Upload a new photo<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" (change)="selectUpload($event)"></label><button type="button" [disabled]="uploadFiles().length === 0" (click)="upload()">Upload</button></div>
+        @if (images().length) {
+          <div class="assignable-images">
+            @for (image of images(); track image.id) { <button type="button" class="photo-choice" (click)="usePhoto(image.id)"><img [src]="image.url" [alt]="image.altText || ''"><span>Use this photo</span></button> }
+          </div>
+        } @else { <p class="state-message">Upload the first product photo above.</p> }
+      </div>
+    </div>
+  }
+</section>

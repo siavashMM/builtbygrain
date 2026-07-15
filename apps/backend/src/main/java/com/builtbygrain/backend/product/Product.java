@@ -6,6 +6,7 @@ import java.util.List;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -17,6 +18,10 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import com.builtbygrain.backend.catalog.Category;
 
 @Entity
 @Table(name = "products")
@@ -25,6 +30,14 @@ public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ProductStatus status = ProductStatus.ACTIVE;
 
     @Column(nullable = false, length = 160)
     private String name;
@@ -58,6 +71,10 @@ public class Product {
     @Column(name = "size", nullable = false, length = 40)
     private List<String> sizes = new ArrayList<>();
 
+    @Convert(converter = ProductConfigurationConverter.class)
+    @Column(name = "detail_json", nullable = false, columnDefinition = "TEXT")
+    private ProductConfiguration configuration = ProductConfiguration.empty();
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -68,6 +85,7 @@ public class Product {
     }
 
     public Product(String name, String slug, String description, long priceCents, String currency, String imageUrl) {
+        this.category = Category.defaultReference();
         this.name = name;
         this.slug = slug;
         this.description = description;
@@ -93,6 +111,10 @@ public class Product {
     public Long getId() {
         return id;
     }
+
+    public Category getCategory() { return category; }
+    public ProductStatus getStatus() { return status; }
+    public void assignCategory(Category category) { this.category = category; }
 
     public String getName() {
         return name;
@@ -142,6 +164,11 @@ public class Product {
         return updatedAt;
     }
 
+    public ProductConfiguration getConfiguration() {
+        return configuration == null ? ProductConfiguration.empty() : configuration;
+    }
+    public void replaceConfiguration(ProductConfiguration configuration) { this.configuration = configuration; }
+
     public void updateFrom(ProductRequest request) {
         name = request.name();
         slug = request.slug();
@@ -158,6 +185,9 @@ public class Product {
         if (request.active() != null) {
             active = request.active();
         }
+        if (request.configuration() != null) {
+            configuration = request.configuration();
+        }
     }
 
     public void addImageUrl(String imageUrl) {
@@ -170,9 +200,13 @@ public class Product {
 
     public void deactivate() {
         active = false;
+        status = ProductStatus.ARCHIVED;
     }
 
     public void activate() {
         active = true;
+        status = ProductStatus.ACTIVE;
     }
+
+    public enum ProductStatus { DRAFT, ACTIVE, ARCHIVED }
 }

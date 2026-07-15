@@ -42,6 +42,23 @@ public class AdminProductsController {
         return productService.createProduct(request);
     }
 
+    @PostMapping("/api/admin/categories/{categoryId}/products")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ProductResponse createProductInCategory(@PathVariable Long categoryId, @Valid @RequestBody ProductRequest request) {
+        return productService.createProduct(request, categoryId);
+    }
+
+    @GetMapping("/api/admin/products/{id}")
+    public ProductResponse product(@PathVariable Long id) { return productService.getProductForAdmin(id); }
+
+    @PatchMapping("/api/admin/products/{id}/move")
+    public ProductResponse moveProduct(@PathVariable Long id, @Valid @RequestBody com.builtbygrain.backend.catalog.CatalogAdminDtos.ProductMoveRequest request) {
+        return productService.moveProduct(id, request.categoryId());
+    }
+
+    @PostMapping("/api/admin/products/{id}/duplicate")
+    public ProductResponse duplicateProduct(@PathVariable Long id) { return productService.duplicateProduct(id); }
+
     @PostMapping(path = "/api/admin/products/with-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ProductResponse createProductWithImages(
         @Valid @RequestPart("product") ProductRequest request,

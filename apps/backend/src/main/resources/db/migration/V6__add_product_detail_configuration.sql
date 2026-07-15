@@ -1,0 +1,1 @@
+ALTER TABLE products ADD COLUMN detail_json TEXT NOT NULL DEFAULT '{}';

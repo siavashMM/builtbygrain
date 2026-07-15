@@ -1,35 +1,49 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { CartService } from '../cart/cart.service';
 import { HealthService } from '../health.service';
-import { Product, ProductService } from '../product.service';
-import { formatPrice } from './price.util';
+import { ProductCard, ProductService } from '../product.service';
 import { ShopNavigationComponent } from './shop-navigation.component';
+import { ProductCardComponent } from './product-card.component';
+import { ShopCatalogService, ShopCategory } from './shop-catalog.service';
 
 type BackendState = 'checking' | 'online' | 'offline';
 type ProductState = 'loading' | 'ready' | 'error';
 
 @Component({
   selector: 'app-shop-home',
-  imports: [RouterLink, ShopNavigationComponent],
+  imports: [ShopNavigationComponent, ProductCardComponent],
   templateUrl: './shop-home.component.html'
 })
 export class ShopHomeComponent implements OnInit {
   private readonly healthService = inject(HealthService);
   private readonly productService = inject(ProductService);
   private readonly cart = inject(CartService);
-  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly catalog = inject(ShopCatalogService);
 
   protected readonly backendState = signal<BackendState>('checking');
   protected readonly backendStatus = signal('Checking backend');
   protected readonly backendTimestamp = signal<string | null>(null);
   protected readonly productState = signal<ProductState>('loading');
-  protected readonly products = signal<Product[]>([]);
-  protected readonly selectedImageIndexes = signal<Record<number, number>>({});
+  protected readonly allProducts = signal<ProductCard[]>([]);
+  protected readonly categories = signal<ShopCategory[]>([]);
+  protected readonly selectedCategorySlug = signal<string | null>(null);
+  protected readonly selectedCategory = computed(() => this.categories().find(category => category.slug === this.selectedCategorySlug()) ?? null);
+  protected readonly products = computed(() => {
+    const selected = this.selectedCategory();
+    if (!selected) return this.allProducts();
+    const ids = new Set<number>([selected.id]);
+    let changed = true;
+    while (changed) { changed = false; for (const category of this.categories()) if (category.parentId != null && ids.has(category.parentId) && !ids.has(category.id)) { ids.add(category.id); changed = true; } }
+    return this.allProducts().filter(product => ids.has(product.categoryId));
+  });
   protected readonly addedProductId = signal<number | null>(null);
 
   ngOnInit(): void {
     this.refreshBackendStatus();
+    this.route.queryParamMap.subscribe(params => this.selectedCategorySlug.set(params.get('category')));
+    this.catalog.categories().subscribe({ next: categories => this.categories.set(categories), error: () => this.categories.set([]) });
     this.loadProducts();
   }
 
@@ -57,67 +71,20 @@ export class ShopHomeComponent implements OnInit {
 
     this.productService.getProducts().subscribe({
       next: (products) => {
-        this.products.set(products);
+        this.allProducts.set(products);
         this.productState.set('ready');
       },
       error: () => {
-        this.products.set([]);
+        this.allProducts.set([]);
         this.productState.set('error');
       }
     });
   }
 
-  protected formatPrice(product: Product): string {
-    return formatPrice(product.priceCents, product.currency);
-  }
-
-  protected shortDescription(product: Product): string {
-    const description = product.description || 'Handcrafted wooden product from Built by Grain.';
-    return description.length > 120 ? `${description.slice(0, 117).trimEnd()}...` : description;
-  }
-
-  protected openProduct(product: Product): void {
-    void this.router.navigate(['/products', product.slug]);
-  }
-
-  protected handleCardKey(event: KeyboardEvent, product: Product): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      this.openProduct(product);
-    }
-  }
-
-  protected addToBag(event: Event, product: Product): void {
-    event.stopPropagation();
-    if (this.cart.addProduct(product)) {
-      this.addedProductId.set(product.id);
-    }
-  }
-
-  protected selectedImage(product: Product): string {
-    if (product.imageUrls.length === 0) {
-      return '/product-placeholder.svg';
-    }
-    return product.imageUrls[this.selectedImageIndex(product)] ?? product.imageUrls[0];
-  }
-
-  protected selectedImageIndex(product: Product): number {
-    return this.selectedImageIndexes()[product.id] ?? 0;
-  }
-
-  protected selectImage(product: Product, index: number): void {
-    this.selectedImageIndexes.update((indexes) => ({ ...indexes, [product.id]: index }));
-  }
-
-  protected previousImage(product: Product): void {
-    const count = product.imageUrls.length;
-    if (count < 2) return;
-    this.selectImage(product, (this.selectedImageIndex(product) - 1 + count) % count);
-  }
-
-  protected nextImage(product: Product): void {
-    const count = product.imageUrls.length;
-    if (count < 2) return;
-    this.selectImage(product, (this.selectedImageIndex(product) + 1) % count);
+  protected addToBag(event: { product: ProductCard; colorId: number | null }): void {
+    this.productService.getProduct(event.product.slug).subscribe(product => {
+      const selected = event.colorId == null ? undefined : product.configuration.variants.find(variant => variant.optionValueIds.includes(`value-${event.colorId}`));
+      if (this.cart.addProduct(product, 1, selected)) this.addedProductId.set(product.id);
+    });
   }
 }

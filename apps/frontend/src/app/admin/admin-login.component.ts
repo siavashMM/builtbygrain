@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AdminAuthService } from './admin-auth.service';
 
 type LoginState = 'idle' | 'submitting' | 'error';
@@ -12,11 +12,16 @@ type LoginState = 'idle' | 'submitting' | 'error';
 export class AdminLoginComponent {
   private readonly authService = inject(AdminAuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly username = signal('');
   protected readonly password = signal('');
   protected readonly state = signal<LoginState>('idle');
-  protected readonly errorMessage = signal('');
+  protected readonly errorMessage = signal(
+    this.route.snapshot.queryParamMap.get('reason') === 'admin-required'
+      ? 'Your previous credentials were not an administrator account. Sign in with an enabled admin account.'
+      : ''
+  );
 
   protected login(event: SubmitEvent): void {
     event.preventDefault();
