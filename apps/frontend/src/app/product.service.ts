@@ -18,6 +18,7 @@ export interface Product {
   categoryId: number;
   categoryName: string;
   categorySlug: string;
+  categoryPath?: string;
 }
 
 export interface ProductCardColorSwatch {
@@ -40,6 +41,7 @@ export interface ProductCard {
   categoryId: number;
   categoryName: string;
   categorySlug: string;
+  categoryPath?: string;
   colorSwatches: ProductCardColorSwatch[];
 }
 

@@ -45,8 +45,13 @@ public class Category {
     public String getImageUrl() { return imageUrl; }
     public int getSortOrder() { return sortOrder; }
     public boolean isActive() { return active; }
+    public String path() {
+        return parent == null ? slug : parent.path() + "/" + slug;
+    }
     public void update(String name, String slug, String description, String imageUrl, boolean active) {
         this.name = name; this.slug = slug; this.description = description; this.imageUrl = imageUrl; this.active = active;
     }
+    public void rename(String name) { this.name = name; }
+    public void setActive(boolean active) { this.active = active; }
     public void moveTo(Category parent, int sortOrder) { this.parent = parent; this.sortOrder = sortOrder; }
 }

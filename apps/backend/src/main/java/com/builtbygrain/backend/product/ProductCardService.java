@@ -24,12 +24,21 @@ public class ProductCardService {
     @Transactional(readOnly = true)
     public List<ProductCardDto> activeCards() {
         return jdbc.query("""
+            WITH RECURSIVE category_paths(id, parent_id, slug, path, active_ancestry) AS (
+                SELECT id, parent_id, slug, CAST(slug AS VARCHAR(2048)) AS path, active
+                FROM categories WHERE parent_id IS NULL
+                UNION ALL
+                SELECT c.id, c.parent_id, c.slug, CAST(cp.path || '/' || c.slug AS VARCHAR(2048)),
+                       cp.active_ancestry AND c.active
+                FROM categories c JOIN category_paths cp ON cp.id = c.parent_id
+            )
             SELECT p.id, p.name, p.slug, p.currency, p.price_cents,
                    p.listing_primary_image_id, p.listing_hover_image_id,
-                   c.id category_id, c.name category_name, c.slug category_slug
+                   c.id category_id, c.name category_name, c.slug category_slug, cp.path category_path
             FROM products p
             JOIN categories c ON c.id = p.category_id
-            WHERE p.active = TRUE AND p.status = 'ACTIVE'
+            JOIN category_paths cp ON cp.id = c.id
+            WHERE p.active = TRUE AND p.status = 'ACTIVE' AND cp.active_ancestry = TRUE
             ORDER BY p.name
             """, (rs, row) -> card(rs));
     }
@@ -62,7 +71,8 @@ public class ProductCardService {
 
         return new ProductCardDto(productId, rs.getString("name"), rs.getString("slug"), rs.getString("currency"),
             cheapest == null ? rs.getLong("price_cents") : cheapest, primary, hover,
-            rs.getLong("category_id"), rs.getString("category_name"), rs.getString("category_slug"), swatches);
+            rs.getLong("category_id"), rs.getString("category_name"), rs.getString("category_slug"),
+            rs.getString("category_path"), swatches);
     }
 
     private List<ProductCardDto.ColorSwatch> swatches(long productId, List<VariantImages> variants, List<Image> productImages) {

@@ -13,6 +13,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByCategoryIdOrderByNameAsc(Long categoryId);
     boolean existsByCategoryIdAndActiveTrue(Long categoryId);
     long countByCategoryId(Long categoryId);
+    List<Product> findByActiveTrueAndStatus(Product.ProductStatus status);
 
     Optional<Product> findBySlugAndActiveTrue(String slug);
 

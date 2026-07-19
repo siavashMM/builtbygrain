@@ -51,6 +51,33 @@ class ProductCardServiceTest {
         assertThat(card.colorSwatches()).extracting(ProductCardDto.ColorSwatch::label).containsExactly("Oak", "Walnut");
         assertThat(card.colorSwatches().getFirst().primaryImageUrl()).isEqualTo("/oak-primary.jpg");
         assertThat(card.colorSwatches().getFirst().hoverImageUrl()).isEqualTo("/oak-hover.jpg");
+
+        long replacement = image(product.getId(), "/oak-replacement.jpg", 4, true);
+        VariantDto updated = catalog.assignImage(product.getId(), oakVariant.id(), new AssignVariantImageRequest(replacement, 0, true));
+        assertThat(updated.primaryImageUrl()).isEqualTo("/oak-replacement.jpg");
+        assertThat(updated.imageUrls()).containsExactly("/oak-replacement.jpg", "/oak-hover.jpg");
+    }
+
+    @Test
+    void deletingCatalogImageClearsEveryAssignmentAndCompactsGalleryOrder() {
+        Product product = products.save(new Product("Delete Image Test", "delete-image-test", "Test", 9900, "EUR", null));
+        OptionDto finish = catalog.createOption(product.getId(), new OptionRequest("Finish", "finish", "BUTTON", 0, true));
+        catalog.createValue(product.getId(), finish.id(), new OptionValueRequest("Oak", "oak", null, null, null, 0, true));
+        VariantDto variant = catalog.generate(product.getId(), new GenerateRequest(9900L, true)).getFirst();
+        long deletedImage = image(product.getId(), "/delete-everywhere.jpg", 0, true);
+        long remainingImage = image(product.getId(), "/keep.jpg", 1, true);
+        catalog.assignListingImage(product.getId(), "primary", new ListingImageRequest(deletedImage));
+        catalog.assignListingImage(product.getId(), "hover", new ListingImageRequest(deletedImage));
+        catalog.assignImage(product.getId(), variant.id(), new AssignVariantImageRequest(deletedImage, 0, true));
+
+        catalog.deleteImage(product.getId(), deletedImage);
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM product_images WHERE id=?", Integer.class, deletedImage)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM product_variant_images WHERE image_id=?", Integer.class, deletedImage)).isZero();
+        assertThat(jdbc.queryForObject("SELECT listing_primary_image_id FROM products WHERE id=?", Long.class, product.getId())).isNull();
+        assertThat(jdbc.queryForObject("SELECT listing_hover_image_id FROM products WHERE id=?", Long.class, product.getId())).isNull();
+        assertThat(jdbc.queryForObject("SELECT display_order FROM product_images WHERE id=?", Integer.class, remainingImage)).isZero();
+        assertThat(catalog.variants(product.getId()).getFirst().primaryImageUrl()).isNull();
     }
 
     private long image(long productId, String url, int order, boolean shared) {

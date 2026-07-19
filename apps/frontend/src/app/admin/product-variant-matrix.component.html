@@ -33,9 +33,10 @@
       <div class="dialog-card simple-photo-dialog">
         <header><div><h3 id="image-dialog-title">Photo for {{ variant.label }}</h3><p>Choose the main photo customers see for this selection.</p></div><button type="button" class="secondary-button" (click)="imageVariant.set(null)">Close</button></header>
         <div class="dialog-upload"><label>Upload a new photo<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" (change)="selectUpload($event)"></label><button type="button" [disabled]="uploadFiles().length === 0" (click)="upload()">Upload</button></div>
+        @if(imageMessage()){<p class="photo-dialog-message" aria-live="polite">{{imageMessage()}}</p>}
         @if (images().length) {
           <div class="assignable-images">
-            @for (image of images(); track image.id) { <button type="button" class="photo-choice" (click)="usePhoto(image.id)"><img [src]="image.url" [alt]="image.altText || ''"><span>Use this photo</span></button> }
+            @for (image of images(); track image.id) { <button type="button" class="photo-choice" [class.selected]="photoSelected(image.url)" [attr.aria-pressed]="photoSelected(image.url)" (click)="usePhoto(image.id)"><img [src]="image.url" [alt]="image.altText || image.filename"><span class="sr-only">{{photoSelected(image.url)?'Selected photo':'Choose '+image.filename}}</span>@if(photoSelected(image.url)){<span class="selected-photo-mark" aria-hidden="true">✓</span>}</button> }
           </div>
         } @else { <p class="state-message">Upload the first product photo above.</p> }
       </div>

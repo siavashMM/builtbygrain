@@ -17,7 +17,8 @@ public record ProductResponse(
     ProductConfiguration configuration,
     Long categoryId,
     String categoryName,
-    String categorySlug
+    String categorySlug,
+    String categoryPath
 ) {
     public static ProductResponse from(Product product) {
         return from(product, product.getConfiguration());
@@ -39,7 +40,8 @@ public record ProductResponse(
             withDefaultVariant(product, configuration),
             product.getCategory().getId(),
             product.getCategory().getName(),
-            product.getCategory().getSlug()
+            product.getCategory().getSlug(),
+            product.getCategory().path()
         );
     }
 

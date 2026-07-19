@@ -21,5 +21,26 @@ describe('ProductCardComponent', () => {
 
     expect((fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>('.listing-image-primary')?.src).toContain('/walnut.jpg');
     expect((fixture.nativeElement as HTMLElement).querySelector('.price')?.textContent).toContain('From');
+    expect((fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.add-button')?.getAttribute('href')).toBe('/products/oak-shelf');
+    expect((fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.product-category-link')?.getAttribute('href')).toBe('/category/shelves');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.add-button')?.textContent).toContain('Choose options');
+
+    const image = (fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>('.listing-image-primary')!;
+    image.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(image.src).toContain('/product-placeholder.svg');
+  });
+
+  it('links nested product categories to their complete category page path', async () => {
+    await TestBed.configureTestingModule({ imports: [ProductCardComponent], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ProductCardComponent);
+    fixture.componentInstance.product = {
+      id: 2, name: 'Standing desk', slug: 'standing-desk', currency: 'EUR', fromPriceCents: 12900,
+      primaryImageUrl: '/desk.jpg', hoverImageUrl: '/desk.jpg', categoryId: 3,
+      categoryName: 'Standing desks', categorySlug: 'standing-desks', categoryPath: 'office/desks/standing-desks', colorSwatches: []
+    } satisfies ProductCard;
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.product-category-link')?.getAttribute('href'))
+      .toBe('/category/office/desks/standing-desks');
   });
 });

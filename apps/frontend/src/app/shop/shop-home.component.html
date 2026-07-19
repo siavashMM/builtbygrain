@@ -1,59 +1,104 @@
-<main class="page-shell">
+<main class="storefront-home">
   <app-shop-navigation />
-  <section class="hero" aria-labelledby="page-title">
-    <div class="hero-copy">
-      <p class="eyebrow">Built by Grain</p>
-      <h1 id="page-title">Handcrafted wooden goods, shaped for everyday use.</h1>
-      <p class="intro">
-        Handmade wooden pieces for simple, durable rituals at home.
-      </p>
-    </div>
 
-    <aside class="status-panel" aria-labelledby="backend-status-title">
-      <div class="status-header">
-        <span class="status-dot" [class.online]="backendState() === 'online'" [class.offline]="backendState() === 'offline'"></span>
-        <div>
-          <h2 id="backend-status-title">Backend status</h2>
-          <p [class.muted]="backendState() === 'checking'">{{ backendStatus() }}</p>
-        </div>
+  <section class="home-hero" aria-labelledby="home-title">
+    <img [src]="heroImage()" [alt]="heroAlt()" width="1600" height="1000" fetchpriority="high" decoding="async"
+      [class.loaded]="heroImageLoaded()" (load)="heroImageLoaded.set(true)" (error)="handleHeroError()">
+    <div class="home-hero-shade" aria-hidden="true"></div>
+    <div class="home-hero-copy">
+      <p class="home-eyebrow">Built by Grain</p>
+      <h1 id="home-title">{{ heroHeading() }}</h1>
+      <p>{{ heroSupportingText() }}</p>
+      <div class="home-actions">
+        <a class="button button-light" href="#featured-products">Shop all products</a>
+        <a class="button button-ghost" href="#shop-categories">Explore collections <span aria-hidden="true">↓</span></a>
       </div>
-
-      <dl>
-        <div>
-          <dt>Endpoint</dt>
-          <dd>/api/health</dd>
-        </div>
-        <div>
-          <dt>Last response</dt>
-          <dd>{{ backendTimestamp() ?? 'No response yet' }}</dd>
-        </div>
-      </dl>
-
-      <button type="button" (click)="refreshBackendStatus()">Refresh</button>
-    </aside>
+    </div>
+    <p class="hero-caption"><span>01</span> Natural oak / made in small batches</p>
   </section>
 
-  <section class="products-section" aria-labelledby="products-title">
-    <div class="section-heading">
-      <p class="eyebrow">Shop preview</p>
-      <h2 id="products-title">{{ selectedCategory()?.name || 'Available products' }}</h2>
+  <section class="value-strip" aria-label="Why shop with Built by Grain">
+    <div><span aria-hidden="true">✦</span><span><strong>Small batch craft</strong>Made by hand, never rushed</span></div>
+    <div><span aria-hidden="true">◌</span><span><strong>Natural materials</strong>Character that improves with age</span></div>
+    <div><span aria-hidden="true">↶</span><span><strong>30-day returns</strong>Time to make sure it belongs</span></div>
+    <div><span aria-hidden="true">◇</span><span><strong>Secure checkout</strong>Protected from cart to door</span></div>
+  </section>
+
+  <section id="shop-categories" class="home-section category-section" aria-labelledby="category-title">
+    <header class="editorial-heading">
+      <div><p class="home-eyebrow">Find your piece</p><h2 id="category-title">Shop by category</h2></div>
+      <p>Explore objects designed to bring warmth, order and purpose to everyday spaces.</p>
+    </header>
+    <div class="category-editorial-grid">
+      @for (category of homeCategories(); track category.id; let i = $index) {
+        <a class="home-category-card" [routerLink]="category.path">
+          <img [src]="imageForCategory(category, i)" [alt]="category.name + ' collection'" loading="lazy">
+          <span class="category-card-shade" aria-hidden="true"></span>
+          <span class="category-card-copy"><small>{{ i + 1 < 10 ? '0' : '' }}{{ i + 1 }}</small><strong>{{ category.name }}</strong><span>{{ category.description || 'Explore handcrafted pieces in this collection.' }}</span></span>
+          <span class="category-arrow" aria-hidden="true">↗</span>
+        </a>
+      }
     </div>
+  </section>
+
+  <section id="featured-products" class="home-section featured-section" aria-labelledby="featured-title">
+    <header class="editorial-heading products-heading">
+      <div><p class="home-eyebrow">The workshop selection</p><h2 id="featured-title">Featured products</h2></div>
+      <p>Everyday essentials, made from natural materials and finished by hand.</p>
+    </header>
 
     @if (productState() === 'loading') {
-      <p class="state-message">Loading products...</p>
-    } @else if (productState() === 'error') {
-      <div class="state-panel" role="status">
-        <p>Products could not be loaded.</p>
-        <button type="button" (click)="loadProducts()">Try again</button>
+      <div class="home-product-grid" aria-label="Loading products" aria-busy="true">
+        @for (item of [1,2,3,4]; track item) { <div class="product-skeleton"><span></span><i></i><i></i></div> }
       </div>
-    } @else if (products().length === 0) {
-      <p class="state-message">No active products are available{{ selectedCategory() ? ' in ' + selectedCategory()!.name : '' }}.</p>
+    } @else if (productState() === 'error') {
+      <div class="home-state-panel" role="alert"><h3>Our shelves are momentarily out of reach.</h3><p>Please try loading the collection again.</p><button type="button" (click)="loadProducts()">Try again</button></div>
+    } @else if (featuredProducts().length === 0) {
+      <div class="home-state-panel"><h3>New pieces are taking shape.</h3><p>Visit again soon to see what has left the workshop.</p></div>
     } @else {
-      <div class="product-grid">
-        @for (product of products(); track product.id) {
-          <app-product-card [product]="product" (add)="addToBag($event)" />
-        }
+      <div class="home-product-grid">
+        @for (product of featuredProducts(); track product.id) { <app-product-card [product]="product" /> }
       </div>
     }
   </section>
+
+  <section class="home-section collection-story" aria-labelledby="spaces-title">
+    <div class="collection-story-copy">
+      <p class="home-eyebrow">Designed to belong</p>
+      <h2 id="spaces-title">Made for considered spaces</h2>
+      <p>From focused workspaces to quiet corners at home, each piece combines natural character with practical use.</p>
+      <a href="#featured-products">Discover all pieces <span aria-hidden="true">→</span></a>
+    </div>
+    @for (category of editorialCategories(); track category.id; let i = $index) {
+      <a class="collection-tile" [class.collection-tile-large]="i === 0" [routerLink]="category.path">
+        <img [src]="imageForCategory(category, i)" [alt]="category.name + ' collection'" loading="lazy"><span>{{ category.name }} <b aria-hidden="true">↗</b></span>
+      </a>
+    }
+  </section>
+
+  <section id="craftsmanship" class="craft-section" aria-labelledby="craft-title">
+    <div class="craft-number" aria-hidden="true">BG<br>01</div>
+    <div class="craft-copy"><p class="home-eyebrow">From our workshop</p><h2 id="craft-title">Made with care.<br><em>Designed to last.</em></h2><p>We create functional wooden objects in small batches, with attention to grain, proportion and everyday durability.</p></div>
+    <ol class="craft-principles"><li><span>01</span><strong>Natural materials</strong><p>Responsibly selected timber with honest texture and tone.</p></li><li><span>02</span><strong>Thoughtful construction</strong><p>Joinery and finishes considered for years of daily use.</p></li><li><span>03</span><strong>Timeless utility</strong><p>Quiet forms that work hard without asking for attention.</p></li></ol>
+  </section>
+
+  <section class="newsletter-section" aria-labelledby="newsletter-title">
+    <div><p class="home-eyebrow">From bench to inbox</p><h2 id="newsletter-title">Notes from the workshop</h2><p>New pieces, material stories and occasional offers, delivered thoughtfully.</p></div>
+    <form (submit)="submitNewsletter($event, newsletterEmail.value)" novalidate>
+      <label for="newsletter-email">Email address</label>
+      <div><input #newsletterEmail id="newsletter-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required><button type="submit">Subscribe <span aria-hidden="true">→</span></button></div>
+      <p class="newsletter-feedback" aria-live="polite">
+        @if (newsletterState() === 'invalid') { Please enter a valid email address. }
+        @if (newsletterState() === 'unavailable') { Subscriptions are not available yet. Please check back soon. }
+      </p>
+    </form>
+  </section>
+
+  <footer class="storefront-footer">
+    <div class="footer-brand"><a routerLink="/" class="shop-brand"><span class="brand-mark" aria-hidden="true"><img src="/builtbygrain-mark.png" alt=""></span><span>Built by Grain</span></a><p>Handcrafted wooden goods for calm, functional and considered spaces.</p></div>
+    <nav aria-label="Shop links"><strong>Shop</strong><a href="#featured-products">All products</a><a href="#shop-categories">Collections</a>@for (category of homeCategories().slice(0, 2); track category.id) { <a [routerLink]="category.path">{{ category.name }}</a> }</nav>
+    <nav aria-label="Customer care links"><strong>Customer care</strong><a href="mailto:hello@builtbygrain.example">Contact</a><a href="#returns">Delivery & returns</a><a href="#care">Product care</a></nav>
+    <nav aria-label="About links"><strong>About</strong><a href="#craftsmanship">Our workshop</a><a href="#materials">Materials</a><a href="#journal">Journal</a></nav>
+    <div class="footer-bottom"><span>© 2026 Built by Grain</span><span>Secure payments · Prices include VAT</span><span>Made thoughtfully in Europe</span></div>
+  </footer>
 </main>

@@ -68,13 +68,16 @@
         </article>
         <article class="admin-card summary-card">
           <h3>Organization</h3>
-          <label>Category<input [value]="categoryName || 'Not selected'" disabled></label>
+          <label>Category<input type="search" list="product-category-options" autocomplete="off" [value]="categoryPath()" placeholder="Search category paths" (change)="selectCategoryPath($any($event.target).value)"></label>
+          <datalist id="product-category-options">@for(category of categoryOptions;track category.id){<option [value]="category.path+(category.active?'':' (inactive)')"></option>}</datalist>
+          <small class="field-help">Choose any category level. Prefer the most specific relevant category.</small>
+          <a class="manage-categories-link" routerLink="/admin/categories">Manage categories →</a>
           <label>URL handle<input name="slug" required [value]="form().slug" (input)="updateField('slug',$any($event.target).value)" (blur)="normalizeSlug()"></label>
           <small class="field-help">/products/{{ form().slug || 'product-name' }}</small>
         </article>
         <article class="admin-card summary-card summary-overview">
           <h3>Product summary</h3>
-          <dl><div><dt>Category</dt><dd>{{ categoryName || 'Unassigned' }}</dd></div><div><dt>Currency</dt><dd>{{ form().currency || 'EUR' }}</dd></div><div><dt>State</dt><dd>{{ form().active ? 'Active' : 'Draft' }}</dd></div></dl>
+          <dl><div><dt>Category</dt><dd>{{ categoryPath() || 'Unassigned' }}</dd></div><div><dt>Currency</dt><dd>{{ form().currency || 'EUR' }}</dd></div><div><dt>State</dt><dd>{{ form().active ? 'Active' : 'Draft' }}</dd></div></dl>
         </article>
       </aside>
 

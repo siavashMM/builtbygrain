@@ -35,8 +35,8 @@ type ListingRole = 'primary' | 'hover';
       <header class="card-heading"><div><h3 id="media-library-title">Product media</h3><p>Images can be shared by the gallery, variants, and product cards without duplicate files.</p></div></header>
       @if (images().length) {
         <div class="media-library-grid">
-          @for (image of images(); track image.id; let index = $index) {
-            <article><img [src]="image.url" [alt]="image.altText || image.filename"><strong>{{ image.altText || image.filename }}</strong><small>{{ usageText(image) }}</small><button type="button" class="text-danger-button" (click)="remove(index)">Delete image</button></article>
+          @for (image of images(); track image.id) {
+            <article><img [src]="image.url" [alt]="image.altText || image.filename"><strong>{{ image.altText || image.filename }}</strong><small>{{ usageText(image) }}</small><button type="button" class="text-danger-button" (click)="remove(image)">Delete image</button></article>
           }
         </div>
       } @else { <p class="state-message">No product images have been uploaded yet.</p> }
@@ -85,5 +85,5 @@ export class ProductCardImagesEditorComponent implements OnChanges {
   protected assign(role:ListingRole,imageId:number|null):void { this.catalog.assignListingImage(this.product.id,role,imageId).subscribe({next:listing=>{this.listing.set(listing);this.selectingRole.set(null);this.load();},error:()=>this.error.set('The product card image could not be updated.')}); }
   protected uploadForRole(role:ListingRole,event:Event):void { const input=event.target as HTMLInputElement;const file=input.files?.[0];if(!file)return;this.products.uploadProductImages(this.product.id,[file]).subscribe({next:product=>{this.productChanged.emit(product);this.catalog.images(this.product.id).subscribe(images=>{this.images.set(images);const newest=images.at(-1);if(newest)this.assign(role,newest.id);});input.value='';},error:()=>this.error.set('Image upload failed. Use JPEG, PNG, WebP, or GIF up to 5 MB.')}); }
   protected uploadMedia(event:Event):void { const input=event.target as HTMLInputElement;const files=Array.from(input.files??[]);if(!files.length)return;this.products.uploadProductImages(this.product.id,files).subscribe({next:product=>{this.productChanged.emit(product);this.load();input.value='';},error:()=>this.error.set('Image upload failed. A product can have up to eight images, 5 MB each.')}); }
-  protected remove(index:number):void { if(!globalThis.confirm('Delete this image? Images used by a product card must be cleared or reassigned first.'))return;this.products.removeProductImage(this.product.id,index).subscribe({next:product=>{this.productChanged.emit(product);this.load();},error:error=>this.error.set(error?.error?.detail||error?.error?.message||'This image is in use. Clear or reassign it before deleting.')}); }
+  protected remove(image:CatalogImage):void { if(!globalThis.confirm('Delete this image everywhere? It will be removed from the product gallery, product cards, and any variants using it.'))return;this.catalog.deleteImage(this.product.id,image.id).subscribe({next:()=>this.load(),error:error=>this.error.set(error?.error?.detail||error?.error?.message||'This image could not be deleted.')}); }
 }

@@ -8,9 +8,12 @@ import { CartComponent } from './cart/cart.component';
 import { AdminShellComponent } from './admin/admin-shell.component';
 import { AdminDashboardComponent } from './admin/admin-dashboard.component';
 import { AdminPlaceholderComponent } from './admin/admin-placeholder.component';
+import { AdminCategoriesComponent } from './admin/admin-categories.component';
+import { ShopCategoryPageComponent } from './shop/shop-category-page.component';
 
 export const routes: Routes = [
   { path: '', component: ShopHomeComponent },
+  { path: 'category', children: [{ path: '**', component: ShopCategoryPageComponent }] },
   { path: 'products/:slug', component: ProductDetailComponent },
   { path: 'cart', component: CartComponent },
   { path: 'admin/login', component: AdminLoginComponent },
@@ -22,7 +25,8 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       { path: 'dashboard', component: AdminDashboardComponent },
       { path: 'products', component: AdminProductsComponent, canDeactivate: [unsavedAdminChangesGuard], data: { workspace: 'products' } },
-      { path: 'categories', component: AdminProductsComponent, canDeactivate: [unsavedAdminChangesGuard], data: { workspace: 'categories' } },
+      { path: 'categories', component: AdminCategoriesComponent },
+      { path: 'storefront', loadComponent: () => import('./admin/admin-storefront.component').then(module => module.AdminStorefrontComponent) },
       { path: 'orders', component: AdminPlaceholderComponent, data: { title: 'Orders', icon: '▤', description: 'Track and manage customer orders.', note: 'The current repository has a customer order endpoint but no admin order-management contract yet.' } },
       { path: 'inventory', component: AdminPlaceholderComponent, data: { title: 'Inventory', icon: '▦', description: 'Monitor stock across product variants.', note: 'Variant stock remains editable in Products until a dedicated inventory API is introduced.' } },
       { path: 'customers', component: AdminPlaceholderComponent, data: { title: 'Customers', icon: '○', description: 'Understand and support your customers.' } },

@@ -13,6 +13,7 @@ public record ProductCardDto(
     Long categoryId,
     String categoryName,
     String categorySlug,
+    String categoryPath,
     List<ColorSwatch> colorSwatches
 ) {
     public record ColorSwatch(

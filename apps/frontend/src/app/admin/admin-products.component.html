@@ -20,13 +20,12 @@
     </div>
   }
 
-  <div class="catalog-admin-layout">
-    <app-catalog-tree (nodeSelected)="selectCatalogNode($event)" (actionRequested)="handleTreeAction($event)" />
+  <div class="products-admin-layout">
     <div class="admin-editor">
       @if(editorMode()==='empty' && workspace === 'products'){
         <section class="admin-card product-index-card">
           <header class="card-heading"><div><h2>All products</h2><p>Select a product to edit it, or add a new product.</p></div><span class="record-count">{{ products().length }} total</span></header>
-          <app-admin-product-list [products]="products()" [state]="productsState()" (editProduct)="editProduct($event); editorMode.set('product')" (deleteProduct)="deleteProduct($event)" />
+          <app-admin-product-list [products]="products()" [state]="productsState()" (editProduct)="editProduct($event)" (deleteProduct)="deleteProduct($event)" />
         </section>
       }
       @if(editorMode()==='empty' && workspace === 'categories'){
@@ -41,6 +40,7 @@
           [saving]="actionState() === 'saving'"
           [categoryId]="productCategoryId()"
           [categoryName]="currentCategoryName()"
+          [categoryOptions]="categoryOptions()"
           [focusVariantId]="selectedVariantId()"
           (saveProduct)="saveProduct($event)"
           (newProduct)="newProduct()"

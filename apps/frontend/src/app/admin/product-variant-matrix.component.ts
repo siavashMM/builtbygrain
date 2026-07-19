@@ -23,6 +23,7 @@ export class ProductVariantMatrixComponent implements OnChanges {
   readonly images = signal<CatalogImage[]>([]);
   readonly message = signal('');
   readonly imageVariant = signal<CatalogVariant | null>(null);
+  readonly imageMessage = signal('');
   readonly uploadFiles = signal<File[]>([]);
   readonly rows = new FormArray<FormGroup>([]);
 
@@ -94,6 +95,7 @@ export class ProductVariantMatrixComponent implements OnChanges {
   openImages(index: number): void {
     const id = this.row(index).controls['id'].value;
     this.imageVariant.set(this.variants().find(variant => variant.id === id) ?? null);
+    this.imageMessage.set('');
   }
 
   deleteVariant(index: number): void {
@@ -112,16 +114,20 @@ export class ProductVariantMatrixComponent implements OnChanges {
   usePhoto(imageId: number): void {
     const variant = this.imageVariant();
     if (!variant) return;
+    this.imageMessage.set('Updating photo…');
     this.api.assignImage(this.productId, variant.id, imageId, 0, true).subscribe({
-      next: () => {
-        this.imageVariant.set(null);
+      next: updated => {
+        this.imageVariant.set(updated);
+        this.variants.update(variants => variants.map(value => value.id === updated.id ? updated : value));
+        this.imageMessage.set('Selected photo updated.');
         this.message.set(`${variant.label} photo updated.`);
-        this.load();
         this.changed.emit();
       },
-      error: error => this.message.set(error.error?.detail || 'The photo could not be assigned.')
+      error: error => this.imageMessage.set(error.error?.detail || 'The photo could not be assigned.')
     });
   }
+
+  photoSelected(url:string):boolean{return this.imageVariant()?.primaryImageUrl===url;}
 
   selectUpload(event: Event): void { this.uploadFiles.set(Array.from((event.target as HTMLInputElement).files ?? [])); }
   upload(): void {
@@ -131,9 +137,9 @@ export class ProductVariantMatrixComponent implements OnChanges {
       next: () => {
         this.uploadFiles.set([]);
         this.api.images(this.productId).subscribe(images => this.images.set(images));
-        this.message.set('Photo uploaded. Select it below to use it for this variant.');
+        this.imageMessage.set('Photo uploaded. Select it below to use it for this variant.');
       },
-      error: error => this.message.set(error.error?.detail || 'The photo could not be uploaded.')
+      error: error => this.imageMessage.set(error.error?.detail || 'The photo could not be uploaded.')
     });
   }
 

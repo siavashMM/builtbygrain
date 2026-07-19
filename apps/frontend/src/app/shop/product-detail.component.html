@@ -4,7 +4,7 @@
   @else if (state() === 'not-found') { <section class="product-state"><p class="eyebrow">Nothing here</p><h1>Product not found</h1><p>This piece is no longer available.</p><a mat-flat-button routerLink="/">Return to the collection</a></section> }
   @else if (state() === 'error') { <section class="product-state" role="alert"><h1>We could not load this product</h1><button mat-flat-button type="button" (click)="loadProduct()">Try again</button></section> }
   @else if (product(); as item) {
-    <nav class="product-breadcrumb" aria-label="Breadcrumb"><a routerLink="/">Shop</a><span>/</span><a routerLink="/" [queryParams]="{category: item.categorySlug}">{{ item.categoryName }}</a><span>/</span><span>{{ item.name }}</span></nav>
+    <nav class="product-breadcrumb" aria-label="Breadcrumb"><a routerLink="/">Shop</a><span>/</span><a [routerLink]="'/category/' + (item.categoryPath || item.categorySlug)">{{ item.categoryName }}</a><span>/</span><span>{{ item.name }}</span></nav>
     <section class="product-layout">
       <app-product-gallery [images]="displayImages()" [productName]="item.name" [selectedIndex]="selectedImageIndex()" (select)="selectImage($event)" (zoom)="openModal()" />
 

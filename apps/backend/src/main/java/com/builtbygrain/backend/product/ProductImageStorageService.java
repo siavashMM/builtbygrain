@@ -43,7 +43,7 @@ public class ProductImageStorageService {
     }
 
     public String store(MultipartFile image) {
-        validate(image);
+        validateImage(image);
 
         String filename = UUID.randomUUID() + extensionFor(image);
         Path productUploadRoot = uploadRoot.resolve("products").normalize();
@@ -84,7 +84,7 @@ public class ProductImageStorageService {
         }
     }
 
-    private void validate(MultipartFile image) {
+    public void validateImage(MultipartFile image) {
         if (image == null || image.isEmpty()) {
             throw new ProductImageStorageException("Product image is required.");
         }

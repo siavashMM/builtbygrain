@@ -1,9 +1,9 @@
 import { Component, OnInit, ViewChild, inject, signal } from '@angular/core';
-import { ActivatedRoute, CanDeactivateFn, Router } from '@angular/router';
+import { ActivatedRoute, CanDeactivateFn, ParamMap, Router } from '@angular/router';
 import { AdminProductFormComponent } from './admin-product-form.component';
 import { Product, ProductRequest, ProductService } from '../product.service';
 import { CatalogTreeComponent } from './catalog-tree.component';
-import { AdminCatalogService, CatalogTreeNode, CategoryDetails, CategoryRequest } from './admin-catalog.service';
+import { AdminCatalogService, CatalogTreeNode, CategoryDetails, CategoryOption, CategoryRequest } from './admin-catalog.service';
 import { CategoryEditorComponent } from './category-editor.component';
 import { AdminProductListComponent } from './admin-product-list.component';
 
@@ -14,7 +14,6 @@ type AdminActionState = 'idle' | 'saving' | 'success' | 'error';
   selector: 'app-admin-products',
   imports: [
     AdminProductFormComponent,
-    CatalogTreeComponent,
     CategoryEditorComponent,
     AdminProductListComponent
   ],
@@ -33,6 +32,7 @@ export class AdminProductsComponent implements OnInit {
   protected readonly selectedNode=signal<CatalogTreeNode|null>(null);
   protected readonly selectedCategory=signal<CategoryDetails|null>(null);
   protected readonly categories=signal<CategoryDetails[]>([]);
+  protected readonly categoryOptions=signal<CategoryOption[]>([]);
   protected readonly editorMode=signal<'empty'|'category'|'product'>('empty');
   protected readonly creatingCategory=signal(false);
   protected readonly categoryParentId=signal<number|null>(null);
@@ -42,10 +42,15 @@ export class AdminProductsComponent implements OnInit {
   protected readonly actionState = signal<AdminActionState>('idle');
   protected readonly message = signal('');
   protected readonly workspace = this.route.snapshot.data['workspace'] === 'categories' ? 'categories' : 'products';
+  private requestedCategoryId:number|null=null;
+  private requestedProductId:number|null=null;
+  private requestedNewProduct=false;
 
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe(params=>this.applyRouteState(params));
     this.loadProducts();
     this.loadCategories();
+    this.catalog.categoryOptions().subscribe({next:items=>this.categoryOptions.set(items)});
   }
 
   protected loadProducts(): void {
@@ -55,6 +60,7 @@ export class AdminProductsComponent implements OnInit {
       next: (products) => {
         this.products.set(products);
         this.productsState.set('ready');
+        this.applyProductRoute();
       },
       error: (error) => {
         this.products.set([]);
@@ -65,17 +71,11 @@ export class AdminProductsComponent implements OnInit {
   }
 
   protected editProduct(product: Product): void {
-    this.selectedProduct.set(product);
-    this.actionState.set('idle');
-    this.message.set('');
+    void this.router.navigate(['/admin/products'], { queryParams: { productId: product.id } });
   }
 
   protected newProduct(): void {
-    this.selectedProduct.set(null);
-    this.productCategoryId.set(this.categories()[0]?.id ?? null);
-    this.editorMode.set('product');
-    this.actionState.set('idle');
-    this.message.set('');
+    void this.router.navigate(['/admin/products'], { queryParams: { new: 'true' } });
   }
 
   protected selectCatalogNode(node: CatalogTreeNode): void {
@@ -85,12 +85,12 @@ export class AdminProductsComponent implements OnInit {
       this.selectedVariantId.set(null);
       const id = Number(node.id.split(':')[1]);
       const product = this.products().find(item => item.id === id);
-      if (product) {this.editProduct(product);this.productCategoryId.set(product.categoryId);this.editorMode.set('product');}
+      if (product) this.editProduct(product);
     } else if (node.nodeType === 'VARIANT' && node.parentId) {
       this.selectedVariantId.set(this.nodeId(node));
       const id = Number(node.parentId.split(':')[1]);
       const product = this.products().find(item => item.id === id);
-      if (product) {this.editProduct(product);this.productCategoryId.set(product.categoryId);this.editorMode.set('product');}
+      if (product) void this.router.navigate(['/admin/products'], { queryParams: { productId: product.id, variantId: this.nodeId(node) } });
     }
   }
 
@@ -99,7 +99,7 @@ export class AdminProductsComponent implements OnInit {
     if(event.action==='add-root'){this.openCategoryCreate(null);return;}
     if(!node)return;
     if(event.action==='add-child'&&node.nodeType==='CATEGORY'){this.openCategoryCreate(this.nodeId(node));return;}
-    if(event.action==='add-product'&&node.nodeType==='CATEGORY'){this.productCategoryId.set(this.nodeId(node));this.selectedProduct.set(null);this.editorMode.set('product');return;}
+    if(event.action==='add-product'&&node.nodeType==='CATEGORY'){void this.router.navigate(['/admin/products'],{queryParams:{categoryId:this.nodeId(node)}});return;}
     if(event.action==='rename'){this.selectCatalogNode(node);return;}
     if(event.action==='move'){this.moveSelected(node);return;}
     if(event.action==='toggle-status'){this.toggleStatus(node);return;}
@@ -124,9 +124,10 @@ export class AdminProductsComponent implements OnInit {
 
     action.subscribe({
       next: (product) => {
-        this.selectedProduct.set(product);
+        this.openProduct(product);
         this.actionState.set('success');
         this.message.set(selectedProduct === null ? 'Product created.' : 'Product updated.');
+        void this.router.navigate(['/admin/products'], { queryParams: { productId: product.id }, replaceUrl: selectedProduct === null });
         this.loadProducts();
         this.tree?.reload();
       },
@@ -174,7 +175,7 @@ export class AdminProductsComponent implements OnInit {
       error: (error) => this.handleAdminError(error, 'Image could not be removed.')
     });
   }
-  protected duplicateCurrent():void{const p=this.selectedProduct();if(!p)return;this.productService.duplicateProduct(p.id).subscribe({next:copy=>{this.handleProductChanged(copy,'Product duplicated.');this.editProduct(copy);this.editorMode.set('product');}});}
+  protected duplicateCurrent():void{const p=this.selectedProduct();if(!p)return;this.productService.duplicateProduct(p.id).subscribe({next:copy=>{this.handleProductChanged(copy,'Product duplicated.');this.editProduct(copy);}});}
   protected archiveCurrent():void{const p=this.selectedProduct();if(!p||!confirm(`Archive ${p.name}?`))return;this.productService.deactivateProduct(p.id).subscribe({next:u=>this.handleProductChanged(u,'Product archived.')});}
   protected currentCategoryName():string{return this.selectedProduct()?.categoryName??this.categories().find(c=>c.id===this.productCategoryId())?.name??'';}
 
@@ -258,6 +259,31 @@ export class AdminProductsComponent implements OnInit {
   private moveSelected(node:CatalogTreeNode):void{const choices=this.categories().filter(c=>c.id!==this.nodeId(node));const label=choices.map(c=>`${c.id}: ${c.name}`).join('\n');const value=globalThis.prompt(`Move to category ID (blank for top level):\n${label}`);if(value===null)return;const target=value.trim()?Number(value):null;if(node.nodeType==='CATEGORY')this.catalog.moveCategory(this.nodeId(node),target,0).subscribe({next:()=>{this.message.set('Category moved.');this.tree?.reload();this.loadCategories();},error:e=>this.handleAdminError(e,'Category could not be moved.')});else if(node.nodeType==='PRODUCT'&&target)this.productService.moveProduct(this.nodeId(node),target).subscribe({next:p=>this.handleProductChanged(p,'Product moved.'),error:e=>this.handleAdminError(e,'Product could not be moved.')});}
   private toggleStatus(node:CatalogTreeNode):void{const active=node.status==='ACTIVE';if(node.nodeType==='CATEGORY')this.catalog.setCategoryStatus(this.nodeId(node),!active).subscribe({next:c=>{this.selectedCategory.set(c);this.message.set(`Category ${c.active?'activated':'deactivated'}.`);this.tree?.reload();},error:e=>this.handleAdminError(e,'Status could not be changed.')});else{const p=this.products().find(x=>x.id===this.nodeId(node));if(!p)return;(p.active?this.productService.deactivateProduct(p.id):this.productService.activateProduct(p.id)).subscribe({next:u=>this.handleProductChanged(u,`Product ${u.active?'activated':'archived'}.`)});}}
   private handleProductChanged(product:Product,message:string):void{this.selectedProduct.set(product);this.message.set(message);this.loadProducts();this.tree?.reload();}
+  private applyRouteState(params:ParamMap):void{
+    this.requestedCategoryId=this.numberQueryParam(params,'categoryId');
+    this.requestedProductId=this.numberQueryParam(params,'productId');
+    this.requestedNewProduct=params.get('new')==='true';
+    this.selectedVariantId.set(this.numberQueryParam(params,'variantId'));
+    if(this.requestedProductId!==null){this.applyProductRoute();return;}
+    if(this.requestedCategoryId!==null||this.requestedNewProduct){
+      this.selectedProduct.set(null);
+      this.productCategoryId.set(this.requestedCategoryId??this.categories()[0]?.id??null);
+      this.editorMode.set('product');
+      this.actionState.set('idle');
+      this.message.set('');
+      return;
+    }
+    if(this.workspace==='products'){
+      this.selectedProduct.set(null);
+      this.productCategoryId.set(null);
+      this.editorMode.set('empty');
+      this.actionState.set('idle');
+      this.message.set('');
+    }
+  }
+  private applyProductRoute():void{if(this.requestedProductId===null)return;const product=this.products().find(value=>value.id===this.requestedProductId);if(product)this.openProduct(product);}
+  private openProduct(product:Product):void{this.selectedProduct.set(product);this.productCategoryId.set(product.categoryId);this.editorMode.set('product');this.actionState.set('idle');this.message.set('');}
+  private numberQueryParam(params:ParamMap,name:string):number|null{const raw=params.get(name);if(raw===null||raw.trim()==='')return null;const value=Number(raw);return Number.isSafeInteger(value)&&value>0?value:null;}
 }
 
 export const unsavedAdminChangesGuard: CanDeactivateFn<AdminProductsComponent> = component =>

@@ -24,10 +24,11 @@ export class AdminShellComponent {
     { label: 'Orders', route: '/admin/orders', icon: '▤' },
     { label: 'Products', route: '/admin/products', icon: '◇' },
     { label: 'Categories', route: '/admin/categories', icon: '⊞' },
+    { label: 'Storefront', route: '/admin/storefront', icon: '▱' },
     { label: 'Inventory', route: '/admin/inventory', icon: '▦' },
     { label: 'Customers', route: '/admin/customers', icon: '○' },
     { label: 'Discounts', route: '/admin/discounts', icon: '%' },
-    { label: 'Content', route: '/admin/content', icon: '▱' }
+    { label: 'Content', route: '/admin/content', icon: '▤' }
   ];
 
   protected closeMobileNavigation(): void {

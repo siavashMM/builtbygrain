@@ -41,6 +41,7 @@ The response is an array of compact product-card objects in ascending name order
   "categoryId": 2,
   "categoryName": "Serving boards",
   "categorySlug": "serving-boards",
+  "categoryPath": "kitchen/serving-boards",
   "colorSwatches": [{
     "id": 12,
     "label": "Oak",
@@ -81,6 +82,68 @@ Example product response:
 `priceCents` and `currency` are backend-provided display values. The guest cart may cache them for rendering an estimated subtotal, but they are not authoritative checkout input. A future checkout request must contain only product IDs, quantities, and any supported option identifiers; the backend will reload active products and calculate the authoritative total.
 
 ```http
+GET /api/public/categories
+GET /api/public/category?path=office/desks/standing-desks
+GET /api/navigation/categories
+```
+
+The public category list contains every active category whose ancestry is active, in configured sibling order. Each category includes its canonical ancestry-derived `path`, for example `/category/office/shelves`; the storefront homepage uses active entries with `parentId: null`.
+
+The public category-page endpoint resolves the complete slug path and returns the selected category, its ordered breadcrumb ancestry, and active product cards assigned directly to it or to any active descendant. A branch in recursive navigation is included only when every category in the branch is active and the category or one of its descendants has an active, non-archived product. Product stock does not affect category visibility.
+
+## Storefront configuration
+
+```http
+GET /api/public/storefront
+```
+
+Returns the homepage settings and active navigation groups as one aggregate. An empty `navigationGroups` array and a settings object without a hero image are valid. Groups, assigned categories, and featured products retain their administrator-defined order. Public categories are references to the real category tree and include their canonical path; inactive categories or categories beneath an inactive ancestor are omitted. Featured products use the same public product-card shape as `GET /api/public/products`; inactive, draft, and archived products are omitted even when their assignment remains visible to administrators.
+
+```json
+{
+  "settings": {
+    "heroImageUrl": "/api/public/uploads/storefront/hero.webp",
+    "heroImageAltText": "Oak shelves in a bright workshop",
+    "heroHeading": "Handcrafted wooden goods, shaped for everyday use.",
+    "heroSupportingText": "Thoughtfully made pieces for calmer desks, organised homes and durable everyday rituals.",
+    "updatedAt": "2026-07-18T12:00:00Z"
+  },
+  "navigationGroups": [{
+    "id": 4,
+    "label": "Living",
+    "displayOrder": 0,
+    "categories": [],
+    "featuredProducts": []
+  }]
+}
+```
+
+Storefront configuration administration requires the `ADMIN` role:
+
+```http
+GET    /api/admin/storefront/settings
+PUT    /api/admin/storefront/settings
+POST   /api/admin/storefront/settings/hero-image
+GET    /api/admin/storefront/navigation-groups
+POST   /api/admin/storefront/navigation-groups
+PUT    /api/admin/storefront/navigation-groups/{groupId}
+DELETE /api/admin/storefront/navigation-groups/{groupId}
+PATCH  /api/admin/storefront/navigation-groups/{groupId}/activate
+PATCH  /api/admin/storefront/navigation-groups/{groupId}/deactivate
+PUT    /api/admin/storefront/navigation-groups/reorder
+POST   /api/admin/storefront/navigation-groups/{groupId}/categories
+DELETE /api/admin/storefront/navigation-groups/{groupId}/categories/{categoryId}
+PUT    /api/admin/storefront/navigation-groups/{groupId}/categories/reorder
+POST   /api/admin/storefront/navigation-groups/{groupId}/featured-products
+DELETE /api/admin/storefront/navigation-groups/{groupId}/featured-products/{productId}
+PUT    /api/admin/storefront/navigation-groups/{groupId}/featured-products/reorder
+```
+
+The settings update body contains `heroImageAltText`, `heroHeading`, and `heroSupportingText`. Heading and supporting text may be `null`; the initial record preserves the current homepage copy shown above. When a hero image is configured its alt text must be nonblank. The hero upload is multipart form data with one `image` and an `altText` field, using the product-image MIME type and size rules. A successful replacement deletes the prior locally managed hero upload.
+
+Navigation group create/update bodies are `{ "label": "Living", "active": true }`. Assignment bodies are `{ "id": 123 }`. Every reorder body is `{ "ids": [3, 1, 2] }` and must list every currently contained ID exactly once. A category may be assigned from any tree depth without moving or renaming it. Duplicate category/product assignments return `409 Conflict`, missing references return `404 Not Found`, malformed reorder sets return `400 Bad Request`, and assigning a fourth featured product returns `409 Conflict`.
+
+```http
 POST /api/admin/auth/login
 GET /api/admin/products
 POST /api/admin/products
@@ -90,14 +153,27 @@ PATCH /api/admin/products/{id}/activate
 DELETE /api/admin/products/{id}
 POST /api/admin/products/{id}/images
 GET /api/admin/products/{id}/images
+DELETE /api/admin/products/{id}/catalog-images/{imageId}
 GET /api/admin/products/{id}/listing-images
 PUT /api/admin/products/{id}/listing-images/{primary|hover}
+GET /api/admin/categories/tree
+GET /api/admin/categories/options
+POST /api/admin/categories?simple=true
+PATCH /api/admin/categories/{id}/name
+PATCH /api/admin/categories/{id}/parent
+PATCH /api/admin/categories/{id}/status
+PATCH /api/admin/categories/{id}/position
+DELETE /api/admin/categories/{id}
 ```
 
 Purpose: allow admins to verify login, list all products, create, update, deactivate, activate, delete, and upload product images.
 These endpoints require the `ADMIN` role.
 
+The category create request contains only `name` and optional `parentId`. The backend generates a normalized slug and appends a sibling-safe numeric suffix when necessary. Renaming preserves the existing slug; moving rejects cycles; deletion is allowed only for categories with no child categories and no assigned products.
+
 The listing-image update body is `{ "imageId": 123 }`; use `null` to clear a role. The image must be an active `product_images` record owned by the same product. Image-list responses include filenames and usage labels so the editor can show gallery, variant, and card assignments.
+
+Deleting a catalog image removes it from the product gallery, clears both product-card roles, removes all variant assignments, compacts the remaining gallery order, and deletes the stored upload.
 
 Admin login uses HTTP Basic credentials and returns:
 

@@ -17,7 +17,8 @@ import com.builtbygrain.backend.product.*;
 public class CatalogManagementService {
     private final JdbcTemplate jdbc;
     private final ProductRepository products;
-    public CatalogManagementService(JdbcTemplate jdbc, ProductRepository products) { this.jdbc = jdbc; this.products = products; }
+    private final ProductImageStorageService imageStorage;
+    public CatalogManagementService(JdbcTemplate jdbc, ProductRepository products, ProductImageStorageService imageStorage) { this.jdbc = jdbc; this.products = products; this.imageStorage = imageStorage; }
 
     @Transactional(readOnly=true)
     public List<OptionDto> options(long productId) {
@@ -107,12 +108,41 @@ public class CatalogManagementService {
 
     @Transactional(readOnly=true)
     public List<ProductImageDto> images(long productId){requireProduct(productId);return jdbc.query("SELECT id,image_url,alt_text,display_order,shared,active FROM product_images WHERE product_id=? ORDER BY display_order,id",(rs,n)->{long imageId=rs.getLong(1);String url=normalize(rs.getString(2));return new ProductImageDto(imageId,url,rs.getString(3),filename(url),rs.getInt(4),rs.getBoolean(5),rs.getBoolean(6),imageUsages(productId,imageId,rs.getBoolean(5)));},productId);}
+    @Transactional
+    public void deleteImage(long productId,long imageId){
+        requireProduct(productId);
+        String imageUrl=jdbc.query("SELECT image_url FROM product_images WHERE id=? AND product_id=?",(rs,n)->rs.getString(1),imageId,productId).stream().findFirst().orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Image not found"));
+        jdbc.update("UPDATE products SET listing_primary_image_id=NULL WHERE id=? AND listing_primary_image_id=?",productId,imageId);
+        jdbc.update("UPDATE products SET listing_hover_image_id=NULL WHERE id=? AND listing_hover_image_id=?",productId,imageId);
+        jdbc.update("DELETE FROM product_variant_images WHERE image_id=?",imageId);
+        jdbc.update("DELETE FROM product_images WHERE id=? AND product_id=?",imageId,productId);
+        List<Long> remaining=ids("SELECT id FROM product_images WHERE product_id=? ORDER BY display_order,id",productId);
+        jdbc.update("UPDATE product_images SET display_order=display_order+1000 WHERE product_id=?",productId);
+        for(int index=0;index<remaining.size();index++)jdbc.update("UPDATE product_images SET display_order=? WHERE id=?",index,remaining.get(index));
+        syncProduct(productId);
+        imageStorage.delete(imageUrl);
+    }
     @Transactional(readOnly=true)
     public ListingImagesDto listingImages(long productId){requireProduct(productId);return jdbc.queryForObject("SELECT listing_primary_image_id,listing_hover_image_id FROM products WHERE id=?",(rs,n)->new ListingImagesDto((Long)rs.getObject(1),(Long)rs.getObject(2)),productId);}
     @Transactional
     public ListingImagesDto assignListingImage(long productId,String role,ListingImageRequest r){requireProduct(productId);String column=switch(role){case "primary"->"listing_primary_image_id";case "hover"->"listing_hover_image_id";default->throw bad("Listing image role must be primary or hover.");};if(r.imageId()!=null){Long owner=jdbc.query("SELECT product_id FROM product_images WHERE id=? AND active=TRUE",(rs,n)->rs.getLong(1),r.imageId()).stream().findFirst().orElseThrow(()->bad("Choose an active image from this product."));if(!Objects.equals(owner,productId))throw bad("Image does not belong to this product.");}jdbc.update("UPDATE products SET "+column+"=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",r.imageId(),productId);return listingImages(productId);}
     @Transactional
-    public VariantDto assignImage(long productId,long variantId,AssignVariantImageRequest r){ensureVariant(productId,variantId);Long owner=jdbc.queryForObject("SELECT product_id FROM product_images WHERE id=?",Long.class,r.imageId());if(!Objects.equals(owner,productId))throw bad("Image does not belong to this product.");if(r.primary())jdbc.update("UPDATE product_variant_images SET is_primary=FALSE WHERE variant_id=?",variantId);jdbc.update("DELETE FROM product_variant_images WHERE variant_id=? AND image_id=?",variantId,r.imageId());jdbc.update("INSERT INTO product_variant_images(variant_id,image_id,sort_order,is_primary) VALUES(?,?,?,?)",variantId,r.imageId(),r.sortOrder(),r.primary());syncProduct(productId);return variant(variantId);}
+    public VariantDto assignImage(long productId,long variantId,AssignVariantImageRequest r){
+        ensureVariant(productId,variantId);
+        Long owner=jdbc.queryForObject("SELECT product_id FROM product_images WHERE id=?",Long.class,r.imageId());
+        if(!Objects.equals(owner,productId))throw bad("Image does not belong to this product.");
+        if(r.primary()){
+            List<Long> remaining=jdbc.query("SELECT image_id FROM product_variant_images WHERE variant_id=? AND image_id<>? AND is_primary=FALSE ORDER BY sort_order,image_id",(rs,n)->rs.getLong(1),variantId,r.imageId());
+            jdbc.update("DELETE FROM product_variant_images WHERE variant_id=?",variantId);
+            jdbc.update("INSERT INTO product_variant_images(variant_id,image_id,sort_order,is_primary) VALUES(?,?,0,TRUE)",variantId,r.imageId());
+            for(int index=0;index<remaining.size();index++)jdbc.update("INSERT INTO product_variant_images(variant_id,image_id,sort_order,is_primary) VALUES(?,?,?,FALSE)",variantId,remaining.get(index),index+1);
+        }else{
+            jdbc.update("DELETE FROM product_variant_images WHERE variant_id=? AND image_id=?",variantId,r.imageId());
+            jdbc.update("INSERT INTO product_variant_images(variant_id,image_id,sort_order,is_primary) VALUES(?,?,?,FALSE)",variantId,r.imageId(),r.sortOrder());
+        }
+        syncProduct(productId);
+        return variant(variantId);
+    }
     @Transactional
     public VariantDto updateImage(long productId,long variantId,long imageId,AssignVariantImageRequest r){return assignImage(productId,variantId,new AssignVariantImageRequest(imageId,r.sortOrder(),r.primary()));}
     @Transactional

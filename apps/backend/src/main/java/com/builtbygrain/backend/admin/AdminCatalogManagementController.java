@@ -30,6 +30,7 @@ public class AdminCatalogManagementController {
     @PatchMapping("/variants/{variantId}/status") public VariantDto status(@PathVariable long productId,@PathVariable long variantId,@Valid @RequestBody StatusRequest r){VariantDto v=catalog.variants(productId).stream().filter(x->x.id()==variantId).findFirst().orElseThrow();return catalog.updateVariant(productId,variantId,new VariantUpdateRequest(v.sku(),v.regularPriceCents(),v.salePriceCents(),v.stockQuantity(),v.availabilityStatus(),r.active(),v.allowBackorder(),v.deliveryEstimate()));}
 
     @GetMapping("/images") public List<ProductImageDto> images(@PathVariable long productId){return catalog.images(productId);}
+    @DeleteMapping("/catalog-images/{imageId}") @ResponseStatus(HttpStatus.NO_CONTENT) public void deleteImage(@PathVariable long productId,@PathVariable long imageId){catalog.deleteImage(productId,imageId);}
     @GetMapping("/listing-images") public ListingImagesDto listingImages(@PathVariable long productId){return catalog.listingImages(productId);}
     @PutMapping("/listing-images/{role}") public ListingImagesDto listingImage(@PathVariable long productId,@PathVariable String role,@RequestBody ListingImageRequest r){return catalog.assignListingImage(productId,role,r);}
     @PostMapping("/variants/{variantId}/images") public VariantDto assign(@PathVariable long productId,@PathVariable long variantId,@Valid @RequestBody AssignVariantImageRequest r){return catalog.assignImage(productId,variantId,r);}

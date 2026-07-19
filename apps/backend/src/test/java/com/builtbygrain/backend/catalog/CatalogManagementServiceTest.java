@@ -61,7 +61,7 @@ class CatalogManagementServiceTest {
         ));
         assertThat(products.findById(product.getId()).orElseThrow().getConfiguration().variants()
             .stream().filter(variant -> variant.id().equals(preserved.publicId())).findFirst().orElseThrow().available()).isFalse();
-        assertThat(catalog.children("product:"+product.getId())).extracting(TreeNode::label).contains("Oak · 50 cm").doesNotContain("Default configuration");
+        assertThat(catalog.children("product:"+product.getId())).as("category trees never expose product variants").isEmpty();
 
         management.deleteVariant(product.getId(),preserved.id());
         assertThat(management.variants(product.getId())).extracting(VariantDto::id).doesNotContain(preserved.id());

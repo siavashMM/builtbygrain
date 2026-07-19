@@ -23,8 +23,8 @@
           <span class="status-badge" [class.inactive]="!product.active">
             {{ product.active ? 'Public' : 'Hidden' }}
           </span>
-          <button type="button" class="secondary-button" (click)="editProduct.emit(product)">Edit</button>
-          <button type="button" class="danger-button" (click)="deleteProduct.emit(product)">Delete</button>
+          <button type="button" class="admin-secondary-button" (click)="editProduct.emit(product)">Edit</button>
+          <button type="button" class="admin-danger-button" (click)="deleteProduct.emit(product)">Delete</button>
         </article>
       }
     </div>

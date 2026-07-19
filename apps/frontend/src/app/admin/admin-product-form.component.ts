@@ -3,6 +3,8 @@ import { Product, ProductOption, ProductOptionValue, ProductRequest, ProductVari
 import { ProductOptionsEditorComponent } from './product-options-editor.component';
 import { ProductVariantMatrixComponent } from './product-variant-matrix.component';
 import { ProductCardImagesEditorComponent } from './product-card-images-editor.component';
+import { RouterLink } from '@angular/router';
+import { CategoryOption } from './admin-catalog.service';
 
 interface ProductForm {
   name: string;
@@ -23,7 +25,7 @@ interface VariantImageRow { key: string; label: string; }
 
 @Component({
   selector: 'app-admin-product-form',
-  imports: [ProductOptionsEditorComponent,ProductVariantMatrixComponent,ProductCardImagesEditorComponent],
+  imports: [ProductOptionsEditorComponent,ProductVariantMatrixComponent,ProductCardImagesEditorComponent,RouterLink],
   templateUrl: './admin-product-form.component.html'
 })
 export class AdminProductFormComponent implements OnChanges {
@@ -31,6 +33,7 @@ export class AdminProductFormComponent implements OnChanges {
   @Input() product: Product | null = null;
   @Input() categoryId: number | null = null;
   @Input() categoryName = '';
+  @Input() categoryOptions:CategoryOption[]=[];
   @Input() focusVariantId:number|null=null;
   @Input() saving = false;
   @Output() saveProduct = new EventEmitter<{ request: ProductRequest; images: File[] }>();
@@ -41,6 +44,7 @@ export class AdminProductFormComponent implements OnChanges {
   @Output() productChanged=new EventEmitter<Product>();
   protected readonly activeTab=signal<'general'|'variants'|'images'|'content'|'seo'|'preview'>('general');
   protected readonly dirty = signal(false);
+  protected readonly selectedCategoryId=signal<number|null>(null);
 
   protected readonly form = signal<ProductForm>(this.emptyForm());
   protected readonly selectedImages = signal<File[]>([]);
@@ -64,6 +68,8 @@ export class AdminProductFormComponent implements OnChanges {
   protected updatePriceEuros(value: string | number): void {
     this.updateField('priceCents', Math.max(0, Math.round(Number(value) * 100)));
   }
+  protected categoryPath():string{return this.categoryOptions.find(value=>value.id===this.selectedCategoryId())?.path??this.categoryName;}
+  protected selectCategoryPath(value:string):void{const category=this.categoryOptions.find(option=>option.path===value.replace(/ \(inactive\)$/,''));if(!category)return;this.selectedCategoryId.set(category.id);this.dirty.set(true);}
 
   protected normalizeSlug(): void {
     const source = this.form().slug || this.form().name;
@@ -124,7 +130,7 @@ export class AdminProductFormComponent implements OnChanges {
         variants,
         sizeAffectsImages: this.sizeAffectsImages()
       },
-      categoryId: this.product?.categoryId ?? this.categoryId
+      categoryId: this.selectedCategoryId() ?? this.product?.categoryId ?? this.categoryId
     };
     this.saveProduct.emit({ request, images: this.product === null ? this.selectedImages() : [] });
   }
@@ -177,6 +183,7 @@ export class AdminProductFormComponent implements OnChanges {
   }
 
   private resetFromProduct(): void {
+    this.selectedCategoryId.set(this.product?.categoryId ?? this.categoryId);
     this.form.set(this.product === null ? this.emptyForm() : this.formFromProduct(this.product));
     this.loadOptions(this.product);
     this.selectedImages.set([]);

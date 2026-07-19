@@ -12,6 +12,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Meta, Title } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Subscription, distinctUntilChanged, map } from 'rxjs';
 import { CartService } from '../cart/cart.service';
 import { Product, ProductCard, ProductOption, ProductVariant, ProductService } from '../product.service';
 import { WishlistService } from '../wishlist.service';
@@ -29,6 +30,9 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private readonly wishlist = inject(WishlistService); private readonly title = inject(Title); private readonly meta = inject(Meta);
   private readonly document = inject(DOCUMENT);
   private readonly snackBar = inject(MatSnackBar);
+  private routeSubscription?: Subscription;
+  private productSubscription?: Subscription;
+  private recommendationsSubscription?: Subscription;
   protected readonly state = signal<DetailState>('loading'); protected readonly product = signal<Product | null>(null);
   protected readonly quantity = signal(1); protected readonly selectedImageIndex = signal(0); protected readonly message = signal('');
   protected readonly selectedValues = signal<Record<string, string>>({}); protected readonly modalOpen = signal(false);
@@ -46,12 +50,27 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return images.length ? images : ['/product-placeholder.svg'];
   });
 
-  ngOnInit(): void { this.loadProduct(); }
-  ngOnDestroy(): void { this.document.getElementById('product-jsonld')?.remove(); }
+  ngOnInit(): void {
+    this.routeSubscription = this.route.paramMap.pipe(
+      map(params => params.get('slug')),
+      distinctUntilChanged()
+    ).subscribe(() => this.loadProduct());
+  }
+  ngOnDestroy(): void {
+    this.routeSubscription?.unsubscribe();
+    this.productSubscription?.unsubscribe();
+    this.recommendationsSubscription?.unsubscribe();
+    this.document.getElementById('product-jsonld')?.remove();
+  }
   protected loadProduct(): void {
-    const slug = this.route.snapshot.paramMap.get('slug'); if (!slug) { this.state.set('not-found'); return; }
+    const slug = this.route.snapshot.paramMap.get('slug');
+    this.productSubscription?.unsubscribe();
+    this.recommendationsSubscription?.unsubscribe();
+    this.product.set(null); this.recommendations.set([]); this.selectedValues.set({}); this.selectedImageIndex.set(0);
+    this.quantity.set(1); this.message.set(''); this.previewColorName.set(null); this.modalOpen.set(false);
+    if (!slug) { this.state.set('not-found'); return; }
     const variantId = this.route.snapshot.queryParamMap.get('variant'); this.state.set('loading');
-    this.productService.getProduct(slug, variantId).subscribe({ next: (product) => {
+    this.productSubscription = this.productService.getProduct(slug, variantId).subscribe({ next: (product) => {
       this.product.set(product); this.restoreVariant(variantId); this.state.set('ready'); this.updateSeo(product); this.loadRecommendations(product.id);
     }, error: (error: HttpErrorResponse) => { this.product.set(null); this.state.set(error.status === 404 ? 'not-found' : 'error'); } });
   }
@@ -97,7 +116,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   protected openModal(): void { this.modalOpen.set(true); setTimeout(() => this.document.querySelector<HTMLButtonElement>('.modal-close')?.focus()); }
   protected closeModal(): void { this.modalOpen.set(false); }
   @HostListener('document:keydown.escape') onEscape(): void { if (this.modalOpen()) this.closeModal(); }
-  private loadRecommendations(productId: number): void { this.productService.getProducts().subscribe({ next: (items) => this.recommendations.set(items.filter(item => item.id !== productId).slice(0, 3)), error: () => this.recommendations.set([]) }); }
+  private loadRecommendations(productId: number): void { this.recommendationsSubscription = this.productService.getProducts().subscribe({ next: (items) => this.recommendations.set(items.filter(item => item.id !== productId).slice(0, 3)), error: () => this.recommendations.set([]) }); }
   private resolveVariant(values: Record<string, string>): ProductVariant | null {
     const p = this.product(); if (!p) return null; const selected = Object.values(values);
     if (p.configuration.options.length !== selected.length) return p.configuration.options.length === 0 ? p.configuration.variants[0] ?? null : null;

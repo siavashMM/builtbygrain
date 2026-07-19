@@ -1,0 +1,223 @@
+<section class="admin-route-page storefront-admin-page" aria-labelledby="storefront-title">
+  <header class="admin-page-heading">
+    <div>
+      <p class="admin-kicker">Storefront configuration</p>
+      <h1 id="storefront-title">Storefront</h1>
+      <p>Manage the homepage hero and the navigation groups shown in the public header.</p>
+    </div>
+  </header>
+
+  @if (message()) {
+    <div class="admin-feedback" [class.error]="messageIsError()" [class.success]="!messageIsError()"
+      [attr.role]="messageIsError() ? 'alert' : 'status'" aria-live="polite">
+      <span aria-hidden="true">{{ messageIsError() ? '!' : '✓' }}</span><p>{{ message() }}</p>
+    </div>
+  }
+
+  @if (state() === 'loading') {
+    <div class="storefront-loading" aria-busy="true" aria-label="Loading storefront configuration">
+      <div class="admin-card loading-block"></div><div class="admin-card loading-block"></div>
+    </div>
+  } @else if (state() === 'error') {
+    <section class="admin-card empty-module-card storefront-load-error">
+      <span class="empty-module-icon" aria-hidden="true">!</span>
+      <h2>Storefront configuration is unavailable</h2>
+      <p>The settings, navigation groups, or catalog choices could not be loaded.</p>
+      <button type="button" class="admin-primary-button" (click)="load()">Try again</button>
+    </section>
+  } @else {
+    <section class="storefront-admin-section" aria-labelledby="hero-section-title">
+      <header class="storefront-section-heading">
+        <div><span>01</span><h2 id="hero-section-title">Homepage hero</h2></div>
+        <p>Keep the homepage image and its accessible description current.</p>
+      </header>
+
+      <div class="admin-card hero-admin-card">
+        <div class="hero-preview" [class.empty]="!settings()?.heroImageUrl">
+          @if (settings()?.heroImageUrl) {
+            <img [src]="settings()!.heroImageUrl" [alt]="settings()!.heroImageAltText || ''">
+          } @else {
+            <div><span aria-hidden="true">▧</span><strong>No hero image configured</strong><small>Upload an image to replace the storefront fallback.</small></div>
+          }
+          <span class="hero-preview-label">Current homepage image</span>
+        </div>
+
+        <div class="hero-admin-form admin-form">
+          <div class="card-heading">
+            <div><h3>Hero content</h3><p>Alt text is required whenever an image is configured.</p></div>
+            @if (settings()?.updatedAt) { <small class="updated-label">Updated {{ settings()!.updatedAt | date:'medium' }}</small> }
+          </div>
+
+          <label for="hero-alt">Image alt text
+            <input id="hero-alt" type="text" maxlength="300" [value]="heroAlt()"
+              (input)="heroAlt.set($any($event.target).value)" [disabled]="saving()" required
+              aria-describedby="hero-alt-help">
+          </label>
+          <p id="hero-alt-help" class="field-help">Describe the image’s useful visual content for customers using assistive technology.</p>
+
+          <label for="hero-heading">Heading
+            <input id="hero-heading" type="text" maxlength="300" [value]="heroHeading()"
+              (input)="heroHeading.set($any($event.target).value)" [disabled]="saving()">
+          </label>
+
+          <label for="hero-supporting-text">Supporting text
+            <textarea id="hero-supporting-text" rows="4" maxlength="1000" [value]="heroSupportingText()"
+              (input)="heroSupportingText.set($any($event.target).value)" [disabled]="saving()"></textarea>
+          </label>
+
+          <button type="button" class="admin-secondary-button save-hero-copy" (click)="saveHeroCopy()" [disabled]="saving()">
+            {{ action() === 'hero-copy' ? 'Saving text…' : 'Save hero text' }}
+          </button>
+
+          <div class="hero-upload-panel">
+            <label for="hero-image">Replacement image
+              <input #heroImage id="hero-image" type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+                (change)="chooseHeroFile(heroImage)" [disabled]="saving()">
+            </label>
+            <p class="field-help">JPEG, PNG, WebP, or GIF within the configured upload limit. The current image stays live unless replacement succeeds.</p>
+            @if (heroFile()) { <p class="selection-summary">Selected: {{ heroFile()!.name }}</p> }
+            @if (action() === 'hero-upload') {
+              <div class="upload-progress" role="status" aria-live="polite">
+                <progress max="100" [value]="uploadProgress() ?? 0"></progress>
+                <span>Uploading {{ uploadProgress() ?? 0 }}%</span>
+              </div>
+            }
+            <button type="button" class="admin-primary-button" (click)="replaceHero()" [disabled]="saving() || !heroFile()">
+              {{ action() === 'hero-upload' ? 'Replacing image…' : 'Upload replacement' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="storefront-admin-section navigation-admin-section" aria-labelledby="navigation-section-title">
+      <header class="storefront-section-heading navigation-heading">
+        <div><span>02</span><h2 id="navigation-section-title">Header navigation</h2></div>
+        <p>Navigation groups are separate from the category tree. Assign categories without moving or renaming them.</p>
+      </header>
+
+      <form class="admin-card create-navigation-group" (submit)="$event.preventDefault(); createGroup()">
+        <label for="new-group-label">New navigation group label
+          <input id="new-group-label" type="text" maxlength="160" placeholder="For example, Office"
+            [value]="newGroupLabel()" (input)="newGroupLabel.set($any($event.target).value)" [disabled]="saving()" required>
+        </label>
+        <button type="submit" class="admin-primary-button" [disabled]="saving() || !newGroupLabel().trim()">
+          {{ action() === 'group-create' ? 'Creating…' : 'Create navigation group' }}
+        </button>
+      </form>
+
+      @if (!groups().length) {
+        <section class="admin-card navigation-empty-state">
+          <span aria-hidden="true">☰</span>
+          <h3>Create your first navigation group</h3>
+          <p>Groups become the primary sections in the public header. Create one above, then assign any categories and up to three featured products.</p>
+        </section>
+      } @else {
+        <div class="navigation-group-list">
+          @for (group of groups(); track group.id; let groupIndex = $index) {
+            <article class="admin-card navigation-group-card" [attr.aria-labelledby]="'group-title-' + group.id">
+              <header class="navigation-group-header">
+                <div class="group-order-controls" aria-label="Navigation group order">
+                  <span>{{ groupIndex + 1 < 10 ? '0' : '' }}{{ groupIndex + 1 }}</span>
+                  <button type="button" (click)="moveGroup(group, -1)" [disabled]="saving() || groupIndex === 0"
+                    [attr.aria-label]="'Move ' + group.label + ' up'">↑</button>
+                  <button type="button" (click)="moveGroup(group, 1)" [disabled]="saving() || groupIndex === groups().length - 1"
+                    [attr.aria-label]="'Move ' + group.label + ' down'">↓</button>
+                </div>
+                <div class="group-title-copy">
+                  <div><h3 [id]="'group-title-' + group.id">{{ group.label }}</h3><span class="status-badge" [class.inactive]="!group.active">{{ group.active ? 'Active' : 'Inactive' }}</span></div>
+                  <p>{{ group.categories.length }} categories · {{ group.featuredProducts.length }}/3 featured products</p>
+                </div>
+                <div class="group-header-actions">
+                  <button type="button" class="admin-secondary-button" (click)="toggleGroup(group)" [disabled]="saving()">
+                    {{ group.active ? 'Deactivate' : 'Activate' }}
+                  </button>
+                  <button type="button" class="admin-danger-button" (click)="deleteGroup(group)" [disabled]="saving()">Delete</button>
+                </div>
+              </header>
+
+              <div class="group-rename-form admin-form">
+                <label [for]="'group-label-' + group.id">Admin-controlled label
+                  <input [id]="'group-label-' + group.id" type="text" maxlength="160"
+                    [value]="groupLabels()[group.id]" (input)="setGroupLabel(group.id, $any($event.target).value)"
+                    [disabled]="saving()" required>
+                </label>
+                <button type="button" class="admin-secondary-button" (click)="renameGroup(group)"
+                  [disabled]="saving() || !groupLabels()[group.id]?.trim() || groupLabels()[group.id]?.trim() === group.label">
+                  {{ action() === 'group-' + group.id + '-rename' ? 'Saving…' : 'Save label' }}
+                </button>
+              </div>
+
+              <div class="group-configuration-grid">
+                <section class="group-assignment-panel" [attr.aria-labelledby]="'categories-' + group.id">
+                  <header><div><h4 [id]="'categories-' + group.id">Assigned categories</h4><p>Choose from any level of the real category tree.</p></div><span>{{ group.categories.length }}</span></header>
+                  <label [for]="'category-choice-' + group.id" class="assignment-picker">Add category
+                    <span><select [id]="'category-choice-' + group.id" [value]="categorySelections()[group.id] ?? ''"
+                      (change)="setCategorySelection(group.id, $any($event.target).value)" [disabled]="saving() || !availableCategories(group).length">
+                      <option value="">Select a category…</option>
+                      @for (category of availableCategories(group); track category.id) {
+                        <option [value]="category.id">{{ category.path }}{{ category.active ? '' : ' (inactive)' }}</option>
+                      }
+                    </select><button type="button" class="admin-secondary-button" (click)="assignCategory(group)"
+                      [disabled]="saving() || !categorySelections()[group.id]">Add</button></span>
+                  </label>
+                  @if (!group.categories.length) { <p class="assignment-empty">No categories assigned.</p> }
+                  <ol class="assigned-category-list">
+                    @for (category of group.categories; track category.id; let categoryIndex = $index) {
+                      <li [class.inactive-assignment]="!category.active">
+                        <div><strong>{{ categoryPath(category.id) }}</strong><small>{{ category.active ? 'Active category' : 'Inactive category — hidden publicly' }}</small></div>
+                        <div class="assignment-actions">
+                          <button type="button" (click)="moveCategory(group, category.id, -1)" [disabled]="saving() || categoryIndex === 0" [attr.aria-label]="'Move ' + category.name + ' up'">↑</button>
+                          <button type="button" (click)="moveCategory(group, category.id, 1)" [disabled]="saving() || categoryIndex === group.categories.length - 1" [attr.aria-label]="'Move ' + category.name + ' down'">↓</button>
+                          <button type="button" class="remove-assignment" (click)="removeCategory(group, category.id)" [disabled]="saving()" [attr.aria-label]="'Remove ' + category.name">Remove</button>
+                        </div>
+                      </li>
+                    }
+                  </ol>
+                </section>
+
+                <section class="group-assignment-panel featured-assignment-panel" [attr.aria-labelledby]="'featured-' + group.id">
+                  <header><div><h4 [id]="'featured-' + group.id">Featured products</h4><p>Select zero to three product cards for this group.</p></div><span>{{ group.featuredProducts.length }}/3</span></header>
+                  <label [for]="'product-choice-' + group.id" class="assignment-picker">Add featured product
+                    <span><select [id]="'product-choice-' + group.id" [value]="productSelections()[group.id] ?? ''"
+                      (change)="setProductSelection(group.id, $any($event.target).value)"
+                      [disabled]="saving() || group.featuredProducts.length >= 3 || !availableProducts(group).length">
+                      <option value="">Select an active product…</option>
+                      @for (product of availableProducts(group); track product.id) {
+                        <option [value]="product.id">{{ product.name }} — {{ categoryPath(product.categoryId) }}</option>
+                      }
+                    </select><button type="button" class="admin-secondary-button" (click)="assignProduct(group)"
+                      [disabled]="saving() || !productSelections()[group.id] || group.featuredProducts.length >= 3">Add</button></span>
+                  </label>
+                  @if (group.featuredProducts.length >= 3) { <p class="field-help limit-reached">Three-product limit reached. Remove one before selecting another.</p> }
+                  @if (!group.featuredProducts.length) { <p class="assignment-empty">No featured products selected.</p> }
+                  <ol class="featured-product-list">
+                    @for (reference of group.featuredProducts; track reference.id; let productIndex = $index) {
+                      @let product = productDetails(reference);
+                      <li [class.inactive-featured-product]="!reference.active || reference.status !== 'ACTIVE'">
+                        <img [src]="productImage(product)" [alt]="''">
+                        <div class="featured-product-copy">
+                          <strong>{{ reference.name }}</strong>
+                          <small>{{ categoryPath(product?.categoryId) }}</small>
+                          <span>{{ formatPrice(product) }} · {{ reference.status }}</span>
+                          @if (!reference.active || reference.status !== 'ACTIVE') {
+                            <b>Inactive — retained here for admin review and hidden publicly</b>
+                          }
+                        </div>
+                        <div class="assignment-actions">
+                          <button type="button" (click)="moveProduct(group, reference.id, -1)" [disabled]="saving() || productIndex === 0" [attr.aria-label]="'Move ' + reference.name + ' up'">↑</button>
+                          <button type="button" (click)="moveProduct(group, reference.id, 1)" [disabled]="saving() || productIndex === group.featuredProducts.length - 1" [attr.aria-label]="'Move ' + reference.name + ' down'">↓</button>
+                          <button type="button" class="remove-assignment" (click)="removeProduct(group, reference.id)" [disabled]="saving()" [attr.aria-label]="'Remove ' + reference.name">Remove</button>
+                        </div>
+                      </li>
+                    }
+                  </ol>
+                </section>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+</section>
