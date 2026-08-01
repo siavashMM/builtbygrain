@@ -1,129 +1,58 @@
-# Local Setup
+# Local setup
 
-## PostgreSQL
+## PostgreSQL and object storage
 
-From the repository root, start the local PostgreSQL database with Podman Compose:
+Create an ignored local environment file, replace both credential placeholders, and start the loopback-bound services:
 
 ```bash
-podman compose -f infra/podman/compose.yaml up -d
+cp .env.example .env
+just dev
 ```
 
-The local database uses:
-
-- Database: `builtbygrain`
-- Username: `builtbygrain`
-- Password: `builtbygrain`
-- Port: `5432`
+PostgreSQL listens on `127.0.0.1:5432`; MinIO uses `127.0.0.1:9000` and its console uses `127.0.0.1:9001`. Runtime uploads belong in the private `builtbygrain-media` bucket.
 
 ## Backend
 
-The backend reads database settings from environment variables and falls back to the local Podman values.
+The local database defaults are `builtbygrain` for the database, username, and password. Bootstrap a missing admin by setting environment-only credentials:
 
 ```bash
-export DATABASE_URL=jdbc:postgresql://localhost:5432/builtbygrain
-export DATABASE_USERNAME=builtbygrain
-export DATABASE_PASSWORD=builtbygrain
 export ADMIN_USERNAME=admin@example.com
 export ADMIN_PASSWORD='use-a-long-random-password'
-
-cd apps/backend
-./mvnw spring-boot:run
+just backend
 ```
 
-Flyway runs automatically when the backend starts and creates the `products` table.
+Flyway owns catalog, Spring Session, throttling, and integrity schemas. A missing bootstrap username is created with a BCrypt password hash; no account is invented when the variables are absent.
 
-On first startup, `ADMIN_USERNAME` and `ADMIN_PASSWORD` create a hashed account in
-PostgreSQL. Once created, login uses the `admin_accounts` table and those variables
-are no longer required for that account. If the table is empty and either variable
-is missing, admin login is unavailable.
+Deployments must activate the `prod` Spring profile. It forces secure admin cookies and disables development CORS origins unless exact origins are explicitly configured.
 
-## Product API
+## Admin API session
 
-Public users can read active products:
+The Angular client handles this automatically. Command-line clients must retain cookies and echo the CSRF token. With `jq` installed:
 
 ```bash
-curl http://localhost:8080/api/public/products
+curl -s -c /tmp/bbg-cookies http://localhost:8080/api/admin/auth/csrf > /tmp/bbg-csrf.json
+CSRF_TOKEN=$(jq -r .token /tmp/bbg-csrf.json)
+curl -s -b /tmp/bbg-cookies -c /tmp/bbg-cookies \
+  -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
+  -d '{"username":"admin@example.com","password":"use-a-long-random-password"}' \
+  http://localhost:8080/api/admin/auth/login
 ```
 
-Admins can list all products, including inactive products, with HTTP Basic authentication:
+Fetch `/api/admin/auth/csrf` again after login, then include its token and the cookie jar on every POST, PUT, PATCH, or DELETE. See `backend-api.http` for executable IDE examples.
+
+## Frontend
 
 ```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" http://localhost:8080/api/admin/products
+just frontend
 ```
 
-Admins can create, update, and deactivate products with HTTP Basic authentication:
+Customer routes include `/`, `/category/**`, `/products/{slug}`, and `/cart`. Admin routes begin at `/admin/login`;
+the guarded tree is lazy loaded. Guest cart/wishlist preferences may use `localStorage`; credentials and sessions
+are never stored there.
 
-```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Oak Board","slug":"oak-board","description":"Handmade oak serving board","priceCents":4900,"currency":"EUR","imageUrl":"https://example.com/oak-board.jpg","inStock":true,"sizes":["S","M"],"active":true}' \
-  http://localhost:8080/api/admin/products
-```
+The shopping bag is browser-local and survives refreshes, but is not shared between browsers or devices. Checkout
+Account and Delivery onboarding begin at `/checkout/account`; displayed totals remain estimates until server-validated
+order and payment processing are implemented. See [checkout-onboarding.md](checkout-onboarding.md) for optional
+Google, Apple, and address-recommendation setup.
 
-Read one public active product by slug:
-
-```bash
-curl http://localhost:8080/api/public/products/oak-board
-```
-
-Update a product:
-
-```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  -X PUT \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Walnut Board","slug":"walnut-board","description":"Handmade walnut serving board","priceCents":5900,"currency":"EUR","imageUrl":"https://example.com/walnut-board.jpg","inStock":true,"sizes":["M","L"],"active":true}' \
-  http://localhost:8080/api/admin/products/1
-```
-
-Deactivate or activate a product without deleting it:
-
-```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X PATCH http://localhost:8080/api/admin/products/1/deactivate
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X PATCH http://localhost:8080/api/admin/products/1/activate
-```
-
-Delete a product:
-
-```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -X DELETE http://localhost:8080/api/admin/products/1
-```
-
-Upload or replace a product image:
-
-```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  -F "image=@/path/to/product.png" \
-  http://localhost:8080/api/admin/products/1/image
-```
-
-The root `backend-api.http` file contains the same requests for IDE HTTP clients.
-
-If `/api/public/products` returns `[]` after creating a product, check `/api/admin/products`.
-Public product browsing only shows products where `active` is `true`.
-
-Product prices are stored by the backend. Checkout code must never trust product prices sent by the frontend.
-
-## Frontend Admin Area
-
-Start the Angular app:
-
-```bash
-cd apps/frontend
-npm start
-```
-
-Customer shop route:
-
-- `http://localhost:4200/`
-- `http://localhost:4200/products/{slug}`
-- `http://localhost:4200/cart`
-
-Admin routes:
-
-- `http://localhost:4200/admin/login`
-- `http://localhost:4200/admin/products`
-
-Use the admin credentials configured with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. The normal shop UI does not link to the admin area.
-
-The shopping bag is a guest cart persisted in the current browser's `localStorage`, so it survives refreshes but is not shared between browsers or devices. Clear browser site data to reset it manually. No authentication token is stored there. Checkout is intentionally disabled in this milestone; the displayed subtotal is only an estimate based on backend-provided catalog prices.
+Run `just verify` for backend tests, frontend headless tests, and a production build. Run `just security-check` for npm audit plus the pinned Maven vulnerability scan.

@@ -4,16 +4,16 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
-
-    List<Product> findByActiveTrueOrderByNameAsc();
 
     List<Product> findAllByOrderByNameAsc();
     List<Product> findByCategoryIdOrderByNameAsc(Long categoryId);
     boolean existsByCategoryIdAndActiveTrue(Long categoryId);
     long countByCategoryId(Long categoryId);
-    List<Product> findByActiveTrueAndStatus(Product.ProductStatus status);
+    @Query("select distinct p.category.id from Product p where p.active = true and p.status = 'ACTIVE'")
+    List<Long> findActiveCategoryIds();
 
     Optional<Product> findBySlugAndActiveTrue(String slug);
 

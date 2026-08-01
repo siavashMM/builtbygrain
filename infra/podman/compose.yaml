@@ -7,9 +7,35 @@ services:
       POSTGRES_USER: builtbygrain
       POSTGRES_PASSWORD: builtbygrain
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - builtbygrain-postgres-data:/var/lib/postgresql/data
 
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: builtbygrain-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${OBJECT_STORAGE_ACCESS_KEY:?Set OBJECT_STORAGE_ACCESS_KEY in .env}
+      MINIO_ROOT_PASSWORD: ${OBJECT_STORAGE_SECRET_KEY:?Set OBJECT_STORAGE_SECRET_KEY in .env}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - builtbygrain-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: docker.io/axllent/mailpit:v1.27
+    container_name: builtbygrain-mailpit
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
 volumes:
   builtbygrain-postgres-data:
+  builtbygrain-minio-data:

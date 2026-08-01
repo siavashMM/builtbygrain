@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { CatalogRequestCache } from './catalog-request-cache.service';
 
 export interface Product {
   id: number;
@@ -76,14 +77,16 @@ export interface ProductRequest {
 })
 export class ProductService {
   private readonly http = inject(HttpClient);
+  private readonly cache = inject(CatalogRequestCache);
 
   getProducts(): Observable<ProductCard[]> {
-    return this.http.get<ProductCard[]>('/api/public/products');
+    return this.cache.get('products', () => this.http.get<ProductCard[]>('/api/public/products'));
   }
 
   getProduct(slug: string, variantId?: string | null): Observable<Product> {
     const query = variantId ? `?variant=${encodeURIComponent(variantId)}` : '';
-    return this.http.get<Product>(`/api/public/products/${encodeURIComponent(slug)}${query}`);
+    const url = `/api/public/products/${encodeURIComponent(slug)}${query}`;
+    return this.cache.get(url, () => this.http.get<Product>(url));
   }
 
   getAdminProducts(): Observable<Product[]> {

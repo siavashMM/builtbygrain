@@ -46,6 +46,21 @@ Checkout can be designed later, after product and order basics exist.
 
 The public Angular catalog uses standalone components for the product list, product detail, shop navigation, and cart page. Public product API calls remain in `ProductService`; guest-cart state and quantity rules remain in `CartService` so components only coordinate presentation and user actions.
 
-The guest cart is browser-local and persists display data in `localStorage`. Its subtotal is explicitly an estimate. Cached prices are never a trusted payment or order total: a future checkout API must accept product IDs and quantities, reload products from PostgreSQL, verify active/stock state, and calculate totals on the backend.
+The current guest cart is browser-local and persists display data in `localStorage`.
+This is a temporary Stage 1 limitation, not the target architecture. Its subtotal is
+explicitly an estimate and cached prices are never trusted for payment or an order.
+Stage 2 must move the canonical guest cart to the server, identify it with an opaque
+secure cookie, expire it after 30 days of inactivity by default, and define a tested
+anonymous-to-customer merge rule.
 
 Public product detail lookup uses the existing product service and `findBySlugAndActiveTrue`, keeping the controller thin and preventing inactive products from being exposed.
+
+## Customer Accounts
+
+Customer authentication uses Spring Security's delegating password encoder,
+JDBC-backed server sessions, CSRF protection, and HttpOnly cookies. Customer data,
+saved addresses, and hashed password-reset tokens are stored in PostgreSQL through
+JPA and Flyway. All account resources are resolved from the authenticated principal.
+
+See [customer-accounts.md](customer-accounts.md) for the security model, local mail
+setup, environment variables, and checkout integration contract.

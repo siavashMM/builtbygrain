@@ -1,39 +1,75 @@
 import { Routes } from '@angular/router';
 import { adminAuthGuard } from './admin/admin-auth.guard';
-import { AdminLoginComponent } from './admin/admin-login.component';
-import { AdminProductsComponent, unsavedAdminChangesGuard } from './admin/admin-products.component';
-import { ShopHomeComponent } from './shop/shop-home.component';
-import { ProductDetailComponent } from './shop/product-detail.component';
-import { CartComponent } from './cart/cart.component';
-import { AdminShellComponent } from './admin/admin-shell.component';
-import { AdminDashboardComponent } from './admin/admin-dashboard.component';
-import { AdminPlaceholderComponent } from './admin/admin-placeholder.component';
-import { AdminCategoriesComponent } from './admin/admin-categories.component';
-import { ShopCategoryPageComponent } from './shop/shop-category-page.component';
+import { accountGuard } from './account/account.guard';
 
 export const routes: Routes = [
-  { path: '', component: ShopHomeComponent },
-  { path: 'category', children: [{ path: '**', component: ShopCategoryPageComponent }] },
-  { path: 'products/:slug', component: ProductDetailComponent },
-  { path: 'cart', component: CartComponent },
-  { path: 'admin/login', component: AdminLoginComponent },
+  { path: '', loadComponent: () => import('./shop/shop-home.component').then(module => module.ShopHomeComponent) },
+  { path: 'category', children: [{
+    path: '**',
+    loadComponent: () => import('./shop/shop-category-page.component').then(module => module.ShopCategoryPageComponent)
+  }] },
+  {
+    path: 'products/:slug',
+    loadComponent: () => import('./shop/product-detail.component').then(module => module.ProductDetailComponent)
+  },
+  { path: 'cart', loadComponent: () => import('./cart/cart.component').then(module => module.CartComponent) },
+  {
+    path: 'checkout/account',
+    loadComponent: () => import('./checkout/checkout-account.component').then(module => module.CheckoutAccountComponent)
+  },
+  {
+    path: 'checkout/delivery',
+    loadComponent: () => import('./checkout/checkout-delivery.component').then(module => module.CheckoutDeliveryComponent)
+  },
+  {
+    path: 'checkout/payment',
+    loadComponent: () => import('./checkout/checkout-payment.component').then(module => module.CheckoutPaymentComponent)
+  },
+  {
+    path: 'account/sign-in',
+    data: { mode: 'sign-in' },
+    loadComponent: () => import('./account/account-auth.component').then(module => module.AccountAuthComponent)
+  },
+  {
+    path: 'account/register',
+    data: { mode: 'register' },
+    loadComponent: () => import('./account/account-auth.component').then(module => module.AccountAuthComponent)
+  },
+  {
+    path: 'account/forgot-password',
+    data: { mode: 'forgot-password' },
+    loadComponent: () => import('./account/account-auth.component').then(module => module.AccountAuthComponent)
+  },
+  {
+    path: 'account/reset-password',
+    data: { mode: 'reset-password' },
+    loadComponent: () => import('./account/account-auth.component').then(module => module.AccountAuthComponent)
+  },
+  {
+    path: 'account',
+    canActivate: [accountGuard],
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        data: { view: 'overview' },
+        loadComponent: () => import('./account/account.component').then(module => module.AccountComponent)
+      },
+      ...['details', 'addresses', 'security', 'orders', 'returns', 'claims'].map(path => ({
+        path,
+        data: { view: path },
+        loadComponent: () => import('./account/account.component').then(module => module.AccountComponent)
+      }))
+    ]
+  },
+  {
+    path: 'admin/login',
+    loadComponent: () => import('./admin/admin-login.component').then(module => module.AdminLoginComponent)
+  },
   {
     path: 'admin',
-    component: AdminShellComponent,
     canActivate: [adminAuthGuard],
-    children: [
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
-      { path: 'dashboard', component: AdminDashboardComponent },
-      { path: 'products', component: AdminProductsComponent, canDeactivate: [unsavedAdminChangesGuard], data: { workspace: 'products' } },
-      { path: 'categories', component: AdminCategoriesComponent },
-      { path: 'storefront', loadComponent: () => import('./admin/admin-storefront.component').then(module => module.AdminStorefrontComponent) },
-      { path: 'orders', component: AdminPlaceholderComponent, data: { title: 'Orders', icon: '▤', description: 'Track and manage customer orders.', note: 'The current repository has a customer order endpoint but no admin order-management contract yet.' } },
-      { path: 'inventory', component: AdminPlaceholderComponent, data: { title: 'Inventory', icon: '▦', description: 'Monitor stock across product variants.', note: 'Variant stock remains editable in Products until a dedicated inventory API is introduced.' } },
-      { path: 'customers', component: AdminPlaceholderComponent, data: { title: 'Customers', icon: '○', description: 'Understand and support your customers.' } },
-      { path: 'discounts', component: AdminPlaceholderComponent, data: { title: 'Discounts', icon: '%', description: 'Create and organize sales incentives.' } },
-      { path: 'content', component: AdminPlaceholderComponent, data: { title: 'Content', icon: '▱', description: 'Manage reusable shop content.' } },
-      { path: 'settings', component: AdminPlaceholderComponent, data: { title: 'Settings', icon: '⚙', description: 'Configure your administration workspace.' } }
-    ]
+    loadChildren: () => import('./admin/admin.routes').then(module => module.ADMIN_ROUTES)
   },
   { path: '**', redirectTo: '' }
 ];

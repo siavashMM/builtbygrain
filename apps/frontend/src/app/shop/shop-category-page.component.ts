@@ -12,7 +12,7 @@ type CategoryPageState = 'loading' | 'ready' | 'not-found' | 'error';
   selector: 'app-shop-category-page',
   imports: [RouterLink, ShopNavigationComponent, ProductCardComponent],
   template: `
-    <main class="storefront-home storefront-category-page">
+    <main id="main-content" class="storefront-home storefront-category-page" tabindex="-1">
       <app-shop-navigation />
 
       @if (state() === 'loading') {

@@ -1,0 +1,263 @@
+<app-shop-navigation />
+<main id="main-content" class="account-page" tabindex="-1">
+  <section class="account-hero">
+    <div>
+      <p class="account-breadcrumb"><a routerLink="/">Home</a> / My account</p>
+      <h1>My account</h1>
+    </div>
+  </section>
+
+  <nav class="account-tabs" aria-label="Account sections">
+    <div class="account-tab-links">
+      <a routerLink="/account" [class.active]="view === 'overview'" [attr.aria-current]="view === 'overview' ? 'page' : null">Overview</a>
+      <a routerLink="/account/orders" [class.active]="view === 'orders'" [attr.aria-current]="view === 'orders' ? 'page' : null">Orders</a>
+      <a routerLink="/account/addresses" [class.active]="view === 'addresses'" [attr.aria-current]="view === 'addresses' ? 'page' : null">Addresses</a>
+      <a routerLink="/account/details" [class.active]="view === 'details'" [attr.aria-current]="view === 'details' ? 'page' : null">Personal details</a>
+      <a routerLink="/account/security" [class.active]="view === 'security'" [attr.aria-current]="view === 'security' ? 'page' : null">Security</a>
+    </div>
+    <button class="account-signout-button" type="button" (click)="logout()">
+      <span>Sign out</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M10 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5"/>
+        <path d="m16 17 5-5-5-5M21 12H9"/>
+      </svg>
+    </button>
+  </nav>
+
+  <div class="account-content">
+    @if (loading()) {
+      <section class="account-state" aria-live="polite"><span class="loading-mark"></span><p>Loading your account…</p></section>
+    } @else {
+      @if (errorMessage()) { <p class="account-message error account-wide-message" role="alert">{{ errorMessage() }}</p> }
+      @if (successMessage()) { <p class="account-message success account-wide-message" role="status">{{ successMessage() }}</p> }
+
+      @if (view === 'overview' && customer(); as profile) {
+        <div class="account-dashboard account-overview-grid">
+          <section class="account-overview-panel overview-orders">
+            <header class="overview-heading">
+              <p>Orders</p>
+              <h2>Your purchases</h2>
+            </header>
+            <div class="overview-link-list">
+              <a class="account-action-card" routerLink="/account/orders">
+                <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4"/></svg></span>
+                <span><strong>View all orders</strong><small>See your order history and updates.</small></span>
+                <span class="action-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+              </a>
+              <a class="account-action-card" routerLink="/account/addresses">
+                <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 10 8-7 8 7v10H4V10Z"/><path d="M9 20v-6h6v6"/></svg></span>
+                <span><strong>Delivery addresses</strong><small>{{ addresses().length }} {{ addresses().length === 1 ? 'saved address' : 'saved addresses' }}.</small></span>
+                <span class="action-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+              </a>
+            </div>
+          </section>
+
+          <section class="account-overview-panel overview-support">
+            <header class="overview-heading">
+              <p>Support</p>
+              <h2>Help &amp; contact</h2>
+            </header>
+            <div class="support-card">
+              <span class="support-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></svg>
+              </span>
+              <div><strong>Need a hand?</strong><p>Ask us about your account, an order, delivery, or product care.</p></div>
+            </div>
+            <a class="support-contact-link" href="mailto:hello@builtbygrain.example">
+              <span>Email customer care</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </a>
+          </section>
+
+          <section class="account-overview-panel overview-profile">
+            <header class="overview-heading">
+              <p>Details</p>
+              <h2>Your account</h2>
+            </header>
+            <div class="profile-summary">
+              <div class="profile-monogram" aria-hidden="true">{{ profile.firstName.charAt(0) }}{{ profile.lastName.charAt(0) }}</div>
+              <h3>{{ profile.firstName }} {{ profile.lastName }}</h3>
+              <dl>
+                <div>
+                  <dt><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3H4a1 1 0 0 0-1 1c0 9.4 7.6 17 17 17a1 1 0 0 0 1-1v-3l-5-2-2 2c-3.3-1.4-5.6-3.7-7-7l2-2-2-5Z"/></svg><span>Phone</span></dt>
+                  <dd>{{ profile.phone || 'Not added yet' }}</dd>
+                </div>
+                <div>
+                  <dt><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg><span>Email</span></dt>
+                  <dd>{{ profile.email }}</dd>
+                </div>
+                <div>
+                  <dt><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l2 2M14 9l2 2"/></svg><span>Password</span></dt>
+                  <dd>••••••••••••</dd>
+                </div>
+              </dl>
+              <a class="profile-manage-link" routerLink="/account/details">
+                <span>Manage account</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              </a>
+            </div>
+          </section>
+        </div>
+      }
+
+      @if (view === 'details') {
+        <section class="account-editor">
+          <div class="editor-intro"><p class="eyebrow">Personal details</p><h1>How can we reach you?</h1><p>Only information needed for your account and future deliveries is collected.</p></div>
+          <form class="account-form" [formGroup]="profileForm" (ngSubmit)="saveProfile()" novalidate>
+            <div class="form-row">
+              <label>First name<input formControlName="firstName" autocomplete="given-name"></label>
+              <label>Last name<input formControlName="lastName" autocomplete="family-name"></label>
+            </div>
+            <label>Email address<input type="email" formControlName="email" autocomplete="email"></label>
+            <label>Phone <span>(optional)</span><input type="tel" formControlName="phone" autocomplete="tel"></label>
+            <label>Language
+              <select formControlName="locale"><option value="en">English</option><option value="de">Deutsch</option></select>
+            </label>
+            <button class="account-primary" type="submit" [disabled]="submitting()">{{ submitting() ? 'Saving…' : 'Save details' }}</button>
+          </form>
+        </section>
+      }
+
+      @if (view === 'addresses') {
+        <section class="address-section">
+          <header class="address-book-intro">
+            <p class="eyebrow">Address book</p>
+            <h2>My addresses</h2>
+            <p>Manage where your orders are delivered and which address is used for billing.</p>
+          </header>
+
+          <section class="address-group" aria-labelledby="delivery-addresses-title">
+            <header class="address-group-heading">
+              <h3 id="delivery-addresses-title">Delivery addresses</h3>
+              <span aria-hidden="true"></span>
+            </header>
+
+            @if (addresses().length === 0 && !showAddressForm()) {
+              <div class="address-empty-state">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 10 8-7 8 7v10H4V10Z"/><path d="M9 20v-6h6v6"/></svg>
+                <div><h4>No saved addresses yet</h4><p>Add one to make checkout faster.</p></div>
+              </div>
+            } @else {
+              <div class="address-list">
+                @for (address of addresses(); track address.id) {
+                  <article class="address-card">
+                    <div class="address-card-copy">
+                      <h4>{{ address.recipientName }}</h4>
+                      <address>
+                        @if (address.company) { {{ address.company }}<br> }
+                        {{ address.street }} {{ address.houseNumber }}<br>
+                        @if (address.addressLine2) { {{ address.addressLine2 }}<br> }
+                        {{ address.postalCode }} {{ address.city }}<br>
+                        {{ address.countryCode }}
+                      </address>
+                      <button class="address-edit-button" type="button" (click)="startAddress(address)">Edit</button>
+                    </div>
+
+                    <div class="address-card-tools">
+                      @if (address.defaultShipping) { <span class="address-default-badge">Default delivery</span> }
+                      <button class="address-delete-button" type="button" (click)="removeAddress(address)" [attr.aria-label]="'Delete address for ' + address.recipientName">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+                      </button>
+                    </div>
+
+                    @if (!address.defaultShipping || !address.defaultBilling) {
+                      <footer class="address-default-actions">
+                        @if (!address.defaultShipping) { <button type="button" (click)="chooseDefault(address, 'shipping')">Use as default delivery</button> }
+                        @if (!address.defaultBilling) { <button type="button" (click)="chooseDefault(address, 'billing')">Use for billing</button> }
+                      </footer>
+                    }
+                  </article>
+                }
+              </div>
+            }
+
+            <button class="address-add-button" type="button" (click)="startAddress()">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              <span>Add a new address</span>
+            </button>
+          </section>
+
+          @if (showAddressForm()) {
+            <section class="address-form-panel" aria-labelledby="address-form-title">
+              <div><p class="eyebrow">Address details</p><h2 id="address-form-title" tabindex="-1">{{ editingAddressId() ? 'Edit address' : 'Add an address' }}</h2></div>
+              <form class="account-form" [formGroup]="addressForm" (ngSubmit)="saveAddress()" novalidate>
+                <label>Recipient name<input formControlName="recipientName" autocomplete="name"></label>
+                <label>Company <span>(optional)</span><input formControlName="company" autocomplete="organization"></label>
+                <div class="form-row street-row"><label>Street<input formControlName="street" autocomplete="address-line1"></label><label>House number<input formControlName="houseNumber"></label></div>
+                <label>Address line 2 <span>(optional)</span><input formControlName="addressLine2" autocomplete="address-line2"></label>
+                <div class="form-row"><label>Postal code<input formControlName="postalCode" autocomplete="postal-code"></label><label>City<input formControlName="city" autocomplete="address-level2"></label></div>
+                <div class="form-row"><label>Region/state <span>(optional)</span><input formControlName="region" autocomplete="address-level1"></label><label>Country code<input formControlName="countryCode" maxlength="2" autocomplete="country"></label></div>
+                <label>Phone <span>(optional)</span><input type="tel" formControlName="phone" autocomplete="tel"></label>
+                <label class="checkbox-label"><input type="checkbox" formControlName="defaultShipping"> Use as default shipping address</label>
+                <label class="checkbox-label"><input type="checkbox" formControlName="defaultBilling"> Use as default billing address</label>
+                <div class="form-actions"><button class="account-primary" type="submit" [disabled]="submitting()">{{ submitting() ? 'Saving…' : 'Save address' }}</button><button class="account-secondary" type="button" (click)="cancelAddress()">Cancel</button></div>
+              </form>
+            </section>
+          }
+
+          <section class="address-group billing-address-group" aria-labelledby="billing-address-title">
+            <header class="address-group-heading">
+              <h3 id="billing-address-title">Billing address</h3>
+              <span aria-hidden="true"></span>
+            </header>
+
+            @if (billingAddresses().length === 0) {
+              <div class="address-empty-state compact">
+                <div><h4>No default billing address</h4><p>Choose “Use for billing” on one of your delivery addresses.</p></div>
+              </div>
+            } @else {
+              <div class="address-list">
+                @for (address of billingAddresses(); track address.id) {
+                  <article class="address-card billing-address-card">
+                    <div class="address-card-copy">
+                      <h4>{{ address.recipientName }}</h4>
+                      <address>
+                        @if (address.company) { {{ address.company }}<br> }
+                        {{ address.street }} {{ address.houseNumber }}<br>
+                        @if (address.addressLine2) { {{ address.addressLine2 }}<br> }
+                        {{ address.postalCode }} {{ address.city }}<br>
+                        {{ address.countryCode }}
+                      </address>
+                      <button class="address-edit-button" type="button" (click)="startAddress(address)">Edit</button>
+                    </div>
+                    <div class="address-card-tools"><span class="address-default-badge">Default billing</span></div>
+                  </article>
+                }
+              </div>
+            }
+          </section>
+        </section>
+      }
+
+      @if (view === 'security') {
+        <section class="account-editor">
+          <div class="editor-intro"><p class="eyebrow">Security</p><h1>Change your password</h1><p>Changing it signs every active session out, including this one.</p></div>
+          <form class="account-form" [formGroup]="passwordForm" (ngSubmit)="changePassword()" novalidate>
+            <label>Current password<input type="password" formControlName="currentPassword" autocomplete="current-password"></label>
+            <label>New password<input type="password" formControlName="newPassword" autocomplete="new-password"><small>Use at least 12 characters.</small></label>
+            <label>Confirm new password<input type="password" formControlName="confirmPassword" autocomplete="new-password"></label>
+            <button class="account-primary" type="submit" [disabled]="submitting()">{{ submitting() ? 'Updating…' : 'Change password' }}</button>
+          </form>
+        </section>
+      }
+
+      @if (view === 'orders' || view === 'returns' || view === 'claims') {
+        <section class="empty-account-state future-empty">
+          <span aria-hidden="true">{{ view === 'orders' ? '▤' : view === 'returns' ? '↩' : '◇' }}</span>
+          <p class="eyebrow">Planned for a later stage</p>
+          <h1>{{ view === 'orders' ? 'Orders' : view === 'returns' ? 'Returns' : 'Claims' }}</h1>
+          <p>This area is ready for the future customer journey. It does not contain mocked records.</p>
+          <a class="account-secondary" routerLink="/account">Back to overview</a>
+        </section>
+      }
+
+      <button class="account-mobile-signout" type="button" (click)="logout()">
+        <span>Sign out</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5"/>
+          <path d="m16 17 5-5-5-5M21 12H9"/>
+        </svg>
+      </button>
+    }
+  </div>
+</main>

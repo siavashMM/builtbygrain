@@ -19,6 +19,7 @@ describe('ShopHomeComponent', () => {
     const fixture = TestBed.createComponent(ShopHomeComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/account/auth/session').flush({}, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/api/public/storefront').flush({ settings: emptySettings(), navigationGroups: [] });
     http.expectOne('/api/public/categories').flush([
       { id: 1, parentId: null, name: 'Office', slug: 'office', description: 'Work well.', imageUrl: null, path: '/category/office', sortOrder: 0, active: true },
@@ -47,6 +48,7 @@ describe('ShopHomeComponent', () => {
     const fixture = TestBed.createComponent(ShopHomeComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/account/auth/session').flush({}, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/api/public/storefront').flush({
       settings: { ...emptySettings(), heroImageUrl: '/configured-hero.jpg', heroImageAltText: 'Configured oak workshop', heroHeading: 'A configured heading', heroSupportingText: 'Configured support.' },
       navigationGroups: []

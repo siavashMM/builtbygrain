@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, ReplaySubject, share } from 'rxjs';
+import { Observable } from 'rxjs';
 import { ProductCard } from '../product.service';
+import { CatalogRequestCache } from '../catalog-request-cache.service';
 
 export interface ShopCategory {
   id: number;
@@ -39,16 +40,18 @@ export interface PublicStorefrontConfiguration {
 @Injectable({ providedIn: 'root' })
 export class ShopCatalogService {
   private readonly http = inject(HttpClient);
-  private readonly categoryResponse = this.http.get<ShopCategory[]>('/api/public/categories').pipe(
-    share({ connector: () => new ReplaySubject(1), resetOnError: true, resetOnComplete: true, resetOnRefCountZero: true })
-  );
-  private readonly storefrontResponse = this.http.get<PublicStorefrontConfiguration>('/api/public/storefront').pipe(
-    share({ connector: () => new ReplaySubject(1), resetOnError: true, resetOnComplete: true, resetOnRefCountZero: true })
-  );
-  categories(): Observable<ShopCategory[]> { return this.categoryResponse; }
-  storefront(): Observable<PublicStorefrontConfiguration> { return this.storefrontResponse; }
-  categoryPage(path: string): Observable<ShopCategoryPage> {
-    return this.http.get<ShopCategoryPage>('/api/public/category', { params: { path } });
+  private readonly cache = inject(CatalogRequestCache);
+  categories(): Observable<ShopCategory[]> {
+    return this.cache.get('categories', () => this.http.get<ShopCategory[]>('/api/public/categories'));
   }
-  navigation():Observable<NavigationCategory[]>{return this.http.get<NavigationCategory[]>('/api/navigation/categories');}
+  storefront(): Observable<PublicStorefrontConfiguration> {
+    return this.cache.get('storefront', () => this.http.get<PublicStorefrontConfiguration>('/api/public/storefront'));
+  }
+  categoryPage(path: string): Observable<ShopCategoryPage> {
+    return this.cache.get(`category:${path}`, () =>
+      this.http.get<ShopCategoryPage>('/api/public/category', { params: { path } }));
+  }
+  navigation():Observable<NavigationCategory[]> {
+    return this.cache.get('navigation', () => this.http.get<NavigationCategory[]>('/api/navigation/categories'));
+  }
 }

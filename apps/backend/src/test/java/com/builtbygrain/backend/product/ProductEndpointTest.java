@@ -1,6 +1,7 @@
 package com.builtbygrain.backend.product;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -10,13 +11,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.builtbygrain.backend.storage.ObjectStorage;
+import com.builtbygrain.backend.storage.ObjectStorageException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,6 +36,12 @@ class ProductEndpointTest {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private ObjectStorage objectStorage;
 
     @BeforeEach
     void setUp() {
@@ -78,7 +89,7 @@ class ProductEndpointTest {
     @Test
     void adminCanCreateProduct() throws Exception {
         mockMvc.perform(post("/api/admin/products")
-                .with(httpBasic("admin", "admin"))
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -110,7 +121,7 @@ class ProductEndpointTest {
     @Test
     void nonAdminCannotCreateProduct() throws Exception {
         mockMvc.perform(post("/api/admin/products")
-                .with(httpBasic("user", "password"))
+                .with(user("user").roles("USER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validProductJson("Oak Serving Board", "oak-serving-board", 4900, true)))
             .andExpect(status().isForbidden());
@@ -124,7 +135,7 @@ class ProductEndpointTest {
         inactive.deactivate();
         productRepository.save(inactive);
 
-        mockMvc.perform(get("/api/admin/products").with(httpBasic("admin", "admin")))
+        mockMvc.perform(get("/api/admin/products").with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(2))
             .andExpect(jsonPath("$[0].name").value("Active Bowl"))
@@ -133,13 +144,14 @@ class ProductEndpointTest {
 
     @Test
     void nonAdminCannotListAdminProducts() throws Exception {
-        mockMvc.perform(get("/api/admin/products").with(httpBasic("user", "password")))
+        mockMvc.perform(get("/api/admin/products").with(user("user").roles("USER")).with(csrf()))
             .andExpect(status().isForbidden());
     }
 
     @Test
     void anonymousCannotCreateProduct() throws Exception {
         mockMvc.perform(post("/api/admin/products")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validProductJson("Oak Serving Board", "oak-serving-board", 4900, true)))
             .andExpect(status().isUnauthorized());
@@ -155,23 +167,24 @@ class ProductEndpointTest {
         );
 
         mockMvc.perform(put("/api/admin/products/{id}", product.getId())
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validProductJson("Hacked", "hacked", 1, false)))
             .andExpect(status().isUnauthorized());
-        mockMvc.perform(patch("/api/admin/products/{id}/deactivate", product.getId()))
+        mockMvc.perform(patch("/api/admin/products/{id}/deactivate", product.getId()).with(csrf()))
             .andExpect(status().isUnauthorized());
-        mockMvc.perform(delete("/api/admin/products/{id}", product.getId()))
+        mockMvc.perform(delete("/api/admin/products/{id}", product.getId()).with(csrf()))
             .andExpect(status().isUnauthorized());
-        mockMvc.perform(multipart("/api/admin/products/{id}/images", product.getId()).file(image))
+        mockMvc.perform(multipart("/api/admin/products/{id}/images", product.getId()).file(image).with(csrf()))
             .andExpect(status().isUnauthorized());
-        mockMvc.perform(delete("/api/admin/products/{id}/images/0", product.getId()))
+        mockMvc.perform(delete("/api/admin/products/{id}/images/0", product.getId()).with(csrf()))
             .andExpect(status().isUnauthorized());
 
         Product unchanged = productRepository.findById(product.getId()).orElseThrow();
         assertThat(unchanged.getName()).isEqualTo("Protected Board");
         assertThat(unchanged.getPriceCents()).isEqualTo(4900);
         assertThat(unchanged.isActive()).isTrue();
-        mockMvc.perform(get("/api/admin/products").with(httpBasic("admin", "admin")))
+        mockMvc.perform(get("/api/admin/products").with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].imageUrls.length()").value(1));
     }
@@ -186,29 +199,29 @@ class ProductEndpointTest {
         );
 
         mockMvc.perform(put("/api/admin/products/{id}", product.getId())
-                .with(httpBasic("user", "password"))
+                .with(user("user").roles("USER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validProductJson("Hacked", "hacked", 1, false)))
             .andExpect(status().isForbidden());
         mockMvc.perform(patch("/api/admin/products/{id}/activate", product.getId())
-                .with(httpBasic("user", "password")))
+                .with(user("user").roles("USER")).with(csrf()))
             .andExpect(status().isForbidden());
         mockMvc.perform(delete("/api/admin/products/{id}", product.getId())
-                .with(httpBasic("user", "password")))
+                .with(user("user").roles("USER")).with(csrf()))
             .andExpect(status().isForbidden());
         mockMvc.perform(multipart("/api/admin/products/{id}/images", product.getId())
                 .file(image)
-                .with(httpBasic("user", "password")))
+                .with(user("user").roles("USER")).with(csrf()))
             .andExpect(status().isForbidden());
         mockMvc.perform(delete("/api/admin/products/{id}/images/0", product.getId())
-                .with(httpBasic("user", "password")))
+                .with(user("user").roles("USER")).with(csrf()))
             .andExpect(status().isForbidden());
 
         Product unchanged = productRepository.findById(product.getId()).orElseThrow();
         assertThat(unchanged.getName()).isEqualTo("Protected Shelf");
         assertThat(unchanged.getPriceCents()).isEqualTo(6900);
         assertThat(unchanged.isActive()).isTrue();
-        mockMvc.perform(get("/api/admin/products").with(httpBasic("admin", "admin")))
+        mockMvc.perform(get("/api/admin/products").with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].imageUrls.length()").value(1));
     }
@@ -223,12 +236,12 @@ class ProductEndpointTest {
             "images", "attack.png", MediaType.IMAGE_PNG_VALUE, "attack".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/admin/products/with-images").file(product).file(image))
+        mockMvc.perform(multipart("/api/admin/products/with-images").file(product).file(image).with(csrf()))
             .andExpect(status().isUnauthorized());
         mockMvc.perform(multipart("/api/admin/products/with-images")
                 .file(product)
                 .file(image)
-                .with(httpBasic("user", "password")))
+                .with(user("user").roles("USER")).with(csrf()))
             .andExpect(status().isForbidden());
 
         assertThat(productRepository.existsBySlug("unauthorized")).isFalse();
@@ -239,7 +252,7 @@ class ProductEndpointTest {
         Product product = productRepository.save(new Product("Old Name", "old-name", "Old description", 2500, "EUR", null));
 
         mockMvc.perform(put("/api/admin/products/{id}", product.getId())
-                .with(httpBasic("admin", "admin"))
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validProductJson("New Name", "new-name", 3900, false)))
             .andExpect(status().isOk())
@@ -257,7 +270,7 @@ class ProductEndpointTest {
         Product product = productRepository.save(new Product("Oak Board", "oak-board", "Board", 4900, "EUR", null));
 
         mockMvc.perform(patch("/api/admin/products/{id}/deactivate", product.getId())
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.active").value(false));
 
@@ -273,7 +286,7 @@ class ProductEndpointTest {
         product = productRepository.save(product);
 
         mockMvc.perform(patch("/api/admin/products/{id}/activate", product.getId())
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.active").value(true));
     }
@@ -283,12 +296,43 @@ class ProductEndpointTest {
         Product product = productRepository.save(new Product("Oak Board", "oak-board", "Board", 4900, "EUR", null));
 
         mockMvc.perform(delete("/api/admin/products/{id}", product.getId())
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/admin/products").with(httpBasic("admin", "admin")))
+        mockMvc.perform(get("/api/admin/products").with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void deletingProductCascadesVariantsAndRemovesImagesAfterCommit() throws Exception {
+        Product product = productRepository.save(new Product(
+            "Cascading Desk", "cascading-desk", "Desk", 4900, "EUR", null));
+        String key = "products/00000000-0000-0000-0000-000000000099.png";
+        objectStorage.put(key, TestImages.png(), MediaType.IMAGE_PNG_VALUE, "test-sha");
+        jdbc.update("""
+            INSERT INTO product_images(product_id,image_url,display_order,shared,active,created_at)
+            VALUES(?,?,0,TRUE,TRUE,CURRENT_TIMESTAMP)
+            """, product.getId(), "/api/public/uploads/" + key);
+        jdbc.update("""
+            INSERT INTO product_variants(public_id,product_id,combination_key,regular_price_cents,
+                stock_quantity,availability_status,active,allow_backorder,created_at,updated_at)
+            VALUES('delete-cascade',?,'delete-cascade',4900,1,'IN_STOCK',TRUE,FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+            """, product.getId());
+
+        mockMvc.perform(delete("/api/admin/products/{id}", product.getId())
+                .with(user("admin").roles("ADMIN")).with(csrf()))
+            .andExpect(status().isNoContent());
+
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM product_variants WHERE product_id=?", Integer.class, product.getId()
+        )).isZero();
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM product_images WHERE product_id=?", Integer.class, product.getId()
+        )).isZero();
+        assertThatThrownBy(() -> objectStorage.head(key))
+            .isInstanceOf(ObjectStorageException.class)
+            .matches(error -> ((ObjectStorageException) error).isNotFound());
     }
 
     @Test
@@ -298,12 +342,12 @@ class ProductEndpointTest {
             "image",
             "oak.png",
             MediaType.IMAGE_PNG_VALUE,
-            "fake png content".getBytes()
+            TestImages.png()
         );
 
         mockMvc.perform(multipart("/api/admin/products/{id}/images", product.getId())
                 .file(new MockMultipartFile("images", image.getOriginalFilename(), image.getContentType(), image.getBytes()))
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.imageUrl").value(org.hamcrest.Matchers.startsWith("/api/public/uploads/products/")))
             .andExpect(jsonPath("$.imageUrls.length()").value(1));
@@ -321,7 +365,7 @@ class ProductEndpointTest {
 
         mockMvc.perform(multipart("/api/admin/products/{id}/images", product.getId())
                 .file(new MockMultipartFile("images", image.getOriginalFilename(), image.getContentType(), image.getBytes()))
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isBadRequest());
     }
 
@@ -334,17 +378,17 @@ class ProductEndpointTest {
             validProductJson("Photo Board", "photo-board", 4900, true).getBytes()
         );
         MockMultipartFile first = new MockMultipartFile(
-            "images", "front.png", MediaType.IMAGE_PNG_VALUE, "front".getBytes()
+            "images", "front.png", MediaType.IMAGE_PNG_VALUE, TestImages.png()
         );
         MockMultipartFile second = new MockMultipartFile(
-            "images", "side.jpg", MediaType.IMAGE_JPEG_VALUE, "side".getBytes()
+            "images", "side.jpg", MediaType.IMAGE_JPEG_VALUE, TestImages.jpeg()
         );
 
         mockMvc.perform(multipart("/api/admin/products/with-images")
                 .file(product)
                 .file(first)
                 .file(second)
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.imageUrls.length()").value(2))
             .andExpect(jsonPath("$.imageUrl").value(org.hamcrest.Matchers.startsWith("/api/public/uploads/products/")));
@@ -353,7 +397,7 @@ class ProductEndpointTest {
     @Test
     void invalidProductInputReturnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/admin/products")
-                .with(httpBasic("admin", "admin"))
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -373,7 +417,7 @@ class ProductEndpointTest {
         productRepository.save(new Product("Oak Board", "oak-board", "Board", 4900, "EUR", null));
 
         mockMvc.perform(post("/api/admin/products")
-                .with(httpBasic("admin", "admin"))
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validProductJson("Second Oak Board", "oak-board", 5900, true)))
             .andExpect(status().isConflict());

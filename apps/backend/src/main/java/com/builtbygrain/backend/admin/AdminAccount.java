@@ -53,5 +53,9 @@ public class AdminAccount {
     public boolean isEnabled() {
         return enabled;
     }
-}
 
+    public void changePasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+        this.updatedAt = LocalDateTime.now();
+    }
+}

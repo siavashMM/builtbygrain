@@ -4,11 +4,17 @@ import static com.builtbygrain.backend.catalog.CatalogAdminDtos.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import javax.sql.DataSource;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +28,7 @@ class ProductCardServiceTest {
     @Autowired ProductCardService cards;
     @Autowired CatalogManagementService catalog;
     @Autowired JdbcTemplate jdbc;
+    @Autowired DataSource dataSource;
 
     @Test
     void resolvesExplicitCardImagesSwatchesAndCheapestActiveVariant() {
@@ -80,9 +87,52 @@ class ProductCardServiceTest {
         assertThat(catalog.variants(product.getId()).getFirst().primaryImageUrl()).isNull();
     }
 
+    @Test
+    void productCardQueriesStayFixedAtFourForOneTenAndOneHundredProducts() {
+        Set<Long> ids = new LinkedHashSet<>();
+        for (int index = 0; index < 100; index++) {
+            Product product = products.save(new Product(
+                "Query Count " + index, "query-count-" + index, "Test", 1000 + index, "EUR", null));
+            ids.add(product.getId());
+        }
+        products.flush();
+
+        CountingJdbcTemplate counting = new CountingJdbcTemplate(dataSource);
+        ProductCardService bounded = new ProductCardService(counting);
+        for (int size : List.of(1, 10, 100)) {
+            Set<Long> selected = ids.stream().limit(size).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            counting.reset();
+            assertThat(bounded.activeCardsForIds(selected)).hasSize(size);
+            assertThat(counting.queryCount()).as("queries for %s products", size).isEqualTo(4);
+        }
+    }
+
     private long image(long productId, String url, int order, boolean shared) {
         jdbc.update("INSERT INTO product_images(product_id,image_url,display_order,shared,active,created_at) VALUES(?,?,?,?,TRUE,CURRENT_TIMESTAMP)",
             productId, url, order, shared);
         return jdbc.queryForObject("SELECT id FROM product_images WHERE product_id=? AND display_order=?", Long.class, productId, order);
+    }
+
+    private static final class CountingJdbcTemplate extends JdbcTemplate {
+        private int queryCount;
+
+        private CountingJdbcTemplate(DataSource dataSource) {
+            super(dataSource);
+        }
+
+        @Override
+        public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
+            queryCount++;
+            return super.query(sql, rowMapper, args);
+        }
+
+        @Override
+        public void query(String sql, RowCallbackHandler rowCallbackHandler, Object... args) {
+            queryCount++;
+            super.query(sql, rowCallbackHandler, args);
+        }
+
+        private int queryCount() { return queryCount; }
+        private void reset() { queryCount = 0; }
     }
 }

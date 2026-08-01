@@ -1,12 +1,10 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { DOCUMENT } from '@angular/common';
 import { Component, ElementRef, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
-import { MatBadgeModule } from '@angular/material/badge';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatMenuModule } from '@angular/material/menu';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { Subscription, filter } from 'rxjs';
 
+import { AccountService } from '../account/account.service';
 import { CartService } from '../cart/cart.service';
 import { ProductCard } from '../product.service';
 import { formatPrice } from './price.util';
@@ -14,7 +12,7 @@ import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-
 
 @Component({
   selector: 'app-shop-navigation',
-  imports: [RouterLink, MatBadgeModule, MatDividerModule, MatMenuModule, A11yModule],
+  imports: [RouterLink, A11yModule],
   template: `
     <header class="site-header" (mouseleave)="closeDesktopMenu(false)">
       <div class="utility-bar">
@@ -28,8 +26,13 @@ import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-
 
       <div class="main-nav">
         <button class="mobile-nav-toggle icon-button" type="button" (click)="toggleMenu()"
-          [attr.aria-expanded]="menuOpen()" aria-controls="mobile-shop-menu" aria-label="Open shop menu">
-          <span aria-hidden="true">{{ menuOpen() ? '×' : '☰' }}</span>
+          [attr.aria-expanded]="menuOpen()" aria-controls="mobile-shop-menu"
+          [attr.aria-label]="menuOpen() ? 'Close shop menu' : 'Open shop menu'">
+          @if (menuOpen()) {
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          } @else {
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          }
         </button>
 
         <a routerLink="/" class="shop-brand" aria-label="Built by Grain home" (click)="closeDestinations()">
@@ -53,9 +56,23 @@ import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-
           <a class="icon-button search-control" routerLink="/" fragment="featured-products" aria-label="Search products" title="Search products" (click)="closeDestinations()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
           </a>
-          <button type="button" class="icon-button bag-button" aria-label="Open shopping bag" [matMenuTriggerFor]="cartMenu"
-            [matBadge]="cart.itemCount()" [matBadgeHidden]="cart.itemCount() === 0">
+          <a class="icon-button account-button" routerLink="/account"
+            [attr.aria-label]="accounts.customer() ? 'My account, signed in' : 'My account'"
+            [title]="accounts.customer() ? 'My account — Signed in' : 'My account'" (click)="closeDestinations()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>
+            @if (accounts.customer()) {
+              <span class="account-status-badge" title="Signed in" aria-hidden="true">✓</span>
+              <span class="sr-only">Signed in</span>
+            }
+          </a>
+          <button type="button" class="icon-button bag-button" (click)="openCart()"
+            aria-haspopup="dialog" aria-controls="cart-drawer"
+            [attr.aria-expanded]="cartDrawerOpen()"
+            [attr.aria-label]="'Open shopping bag, ' + cart.itemCount() + (cart.itemCount() === 1 ? ' item' : ' items')">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8.5h14l-1 12H6l-1-12Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+            @if (cart.itemCount() > 0) {
+              <span class="cart-count-badge" aria-hidden="true">{{ cart.itemCount() > 99 ? '99+' : cart.itemCount() }}</span>
+            }
           </button>
         </div>
       </div>
@@ -99,14 +116,16 @@ import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-
 
     @if (menuOpen()) {
       <div class="mobile-menu-scrim" (click)="closeMenu()" aria-hidden="true"></div>
-      <nav id="mobile-shop-menu" class="mobile-shop-menu" aria-label="Mobile shop navigation" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+      <nav id="mobile-shop-menu" class="mobile-shop-menu" aria-label="Mobile shop navigation" cdkTrapFocus>
         <div class="mobile-menu-heading">
           @if (activeMobileGroup()) {
             <button type="button" class="mobile-menu-back" (click)="backToGroups()">← Back</button>
           } @else {
             <span class="brand-mark" aria-hidden="true"><img src="/builtbygrain-mark.png" alt=""></span>
           }
-          <button type="button" class="icon-button" (click)="closeMenu()" aria-label="Close shop menu">×</button>
+          <button type="button" class="icon-button" (click)="closeMenu()" aria-label="Close shop menu">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          </button>
         </div>
 
         @if (activeMobileGroup(); as group) {
@@ -142,6 +161,7 @@ import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-
           }
           <a routerLink="/" fragment="featured-products" (click)="closeDestinations()"><span>All products</span><span aria-hidden="true">↗</span></a>
           <div class="mobile-menu-meta">
+            <a routerLink="/account" (click)="closeDestinations()">My account</a>
             <a href="mailto:hello@builtbygrain.example">Customer care</a>
             <a routerLink="/" fragment="craftsmanship" (click)="closeDestinations()">Our craft</a>
           </div>
@@ -150,21 +170,68 @@ import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-
       </nav>
     }
 
-    <mat-menu #cartMenu="matMenu" class="cart-menu">
-      <div class="mini-cart" (click)="$event.stopPropagation()">
-        <div class="mini-cart-heading"><strong>Your bag</strong><span>{{ cart.itemCount() }} {{ cart.itemCount() === 1 ? 'item' : 'items' }}</span></div>
-        <mat-divider/>
-        @if (cart.items().length === 0) { <p class="empty-cart">Your bag is waiting for something beautiful.</p> }
-        @for (item of cart.items(); track item.productId + item.variantId) {
-          <div class="mini-cart-item"><img [src]="item.imageUrl || '/product-placeholder.svg'" alt="" (error)="usePlaceholder($event)"><div><strong>{{ item.name }}</strong><span>{{ item.variantSummary || 'Standard' }} · Qty {{ item.quantity }}</span><b>{{ format(item.priceCents * item.quantity, item.currency) }}</b></div><button type="button" (click)="cart.remove(item.productId, item.variantId)" [attr.aria-label]="'Remove ' + item.name">×</button></div>
-        }
-        @if (cart.items().length) { <mat-divider/><div class="mini-cart-total"><span>Subtotal</span><strong>{{ format(cart.subtotalCents(), cart.items()[0].currency) }}</strong></div><a routerLink="/cart" class="mini-cart-primary">View bag</a><a routerLink="/cart" class="mini-cart-secondary">Continue to checkout</a> }
+    @if (cartDrawerOpen()) {
+      <div class="cart-drawer-layer">
+        <div class="cart-drawer-scrim" aria-hidden="true" (click)="closeCart()"></div>
+        <aside id="cart-drawer" class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-drawer-title"
+          cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+          <header class="cart-drawer-header">
+            <h2 id="cart-drawer-title">Shopping bag
+              @if (cart.itemCount() > 0) { <span>({{ cart.itemCount() }})</span> }
+            </h2>
+            <button type="button" class="cart-drawer-close" (click)="closeCart()" aria-label="Close shopping bag">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+          </header>
+
+          <div class="cart-drawer-body">
+            @if (cart.items().length === 0) {
+              <div class="cart-drawer-empty">
+                <p>Your shopping bag is currently empty. <a routerLink="/" fragment="featured-products" (click)="closeCart(false)">Continue browsing</a></p>
+              </div>
+            } @else {
+              <div class="cart-drawer-items">
+                @for (item of cart.items(); track item.productId + '-' + item.variantId) {
+                  <article class="cart-drawer-item">
+                    <a class="cart-drawer-image" [routerLink]="['/products', item.slug]" [queryParams]="{ variant: item.variantId }" (click)="closeCart(false)">
+                      <img [src]="item.imageUrl || '/product-placeholder.svg'" [alt]="item.name" (error)="usePlaceholder($event)">
+                    </a>
+                    <div class="cart-drawer-item-copy">
+                      <h3><a [routerLink]="['/products', item.slug]" [queryParams]="{ variant: item.variantId }" (click)="closeCart(false)">{{ item.name }}</a></h3>
+                      @if (item.variantSummary) { <p>{{ item.variantSummary }}</p> }
+                      <strong>{{ format(item.priceCents * item.quantity, item.currency) }}</strong>
+                      <div class="cart-drawer-item-actions">
+                        <div class="drawer-quantity" [attr.aria-label]="'Quantity for ' + item.name">
+                          <button type="button" (click)="cart.decrease(item.productId, item.variantId)"
+                            [disabled]="item.quantity === 1" [attr.aria-label]="'Decrease ' + item.name + ' quantity'">−</button>
+                          <span>{{ item.quantity }}</span>
+                          <button type="button" (click)="cart.increase(item.productId, item.variantId)"
+                            [disabled]="item.quantity === 99" [attr.aria-label]="'Increase ' + item.name + ' quantity'">+</button>
+                        </div>
+                        <button type="button" class="drawer-remove" (click)="cart.remove(item.productId, item.variantId)">Remove</button>
+                      </div>
+                    </div>
+                  </article>
+                }
+              </div>
+            }
+          </div>
+
+          @if (cart.items().length > 0) {
+            <footer class="cart-drawer-footer">
+              <div><span>Estimated subtotal</span><strong>{{ format(cart.subtotalCents(), cart.items()[0].currency) }}</strong></div>
+              <p>Final prices and availability are verified securely at checkout.</p>
+              <a routerLink="/cart" class="cart-drawer-primary" (click)="closeCart(false)">Review shopping bag</a>
+            </footer>
+          }
+        </aside>
       </div>
-    </mat-menu>
+    }
   `
 })
 export class ShopNavigationComponent implements OnInit, OnDestroy {
   protected readonly cart = inject(CartService);
+  protected readonly accounts = inject(AccountService);
   private readonly catalog = inject(ShopCatalogService);
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
@@ -176,8 +243,10 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
   protected readonly activeDesktopGroupId = signal<number | null>(null);
   protected readonly activeMobileGroupId = signal<number | null>(null);
   protected readonly menuOpen = signal(false);
+  protected readonly cartDrawerOpen = signal(false);
   private routeSubscription?: Subscription;
   private focusBeforeMobileMenu: HTMLElement | null = null;
+  private focusBeforeCart: HTMLElement | null = null;
   private groupOpenedByFocus: number | null = null;
 
   protected readonly navigationGroups = computed(() => {
@@ -209,6 +278,7 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
   protected readonly activeMobileGroup = computed(() => this.navigationGroups().find(group => group.id === this.activeMobileGroupId()) ?? null);
 
   ngOnInit(): void {
+    this.accounts.restoreSession().subscribe();
     this.catalog.storefront().subscribe({
       next: configuration => { this.configuredGroups.set(configuration.navigationGroups ?? []); this.configurationLoaded.set(true); },
       error: () => { this.configuredGroups.set([]); this.configurationLoaded.set(true); }
@@ -222,11 +292,11 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.routeSubscription?.unsubscribe();
-    this.unlockPage();
+    this.document.body.classList.remove('shop-menu-open', 'cart-drawer-open');
   }
 
   protected openDesktopMenu(group: PublicNavigationGroup): void {
-    if (this.menuOpen()) return;
+    if (this.menuOpen() || this.cartDrawerOpen()) return;
     this.activeDesktopGroupId.set(group.id);
   }
 
@@ -258,10 +328,14 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
   protected toggleMenu(): void { this.menuOpen() ? this.closeMenu() : this.openMenu(); }
 
   protected openMenu(): void {
+    this.closeCart(false);
     this.closeDesktopMenu(false);
-    this.focusBeforeMobileMenu = this.document.activeElement instanceof HTMLElement ? this.document.activeElement : null;
+    this.focusBeforeMobileMenu = this.host.nativeElement.querySelector<HTMLElement>('.mobile-nav-toggle')
+      ?? (this.document.activeElement instanceof HTMLElement ? this.document.activeElement : null);
     this.menuOpen.set(true);
     this.document.body.classList.add('shop-menu-open');
+    queueMicrotask(() => this.host.nativeElement
+      .querySelector<HTMLElement>('#mobile-shop-menu button, #mobile-shop-menu a')?.focus());
   }
 
   protected closeMenu(restoreFocus = true): void {
@@ -271,14 +345,40 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
     this.unlockPage();
     if (restoreFocus) {
       const target = this.focusBeforeMobileMenu;
-      setTimeout(() => target?.isConnected && target.focus());
+      queueMicrotask(() => target?.isConnected && target.focus());
     }
   }
 
   protected openMobileGroup(group: PublicNavigationGroup): void { this.activeMobileGroupId.set(group.id); }
   protected backToGroups(): void { this.activeMobileGroupId.set(null); }
-  protected closeDestinations(): void { this.closeDesktopMenu(false); this.closeMenu(true); }
+  protected closeDestinations(): void { this.closeDesktopMenu(false); this.closeMenu(true); this.closeCart(false); }
   protected format(cents: number, currency: string): string { return formatPrice(cents, currency); }
+
+  protected openCart(): void {
+    if (this.document.defaultView?.matchMedia('(max-width: 760px)').matches) {
+      void this.router.navigate(['/cart']);
+      return;
+    }
+    this.closeDesktopMenu(false);
+    this.closeMenu(false);
+    this.focusBeforeCart = this.document.activeElement instanceof HTMLElement
+      ? this.document.activeElement
+      : this.host.nativeElement.querySelector<HTMLElement>('.bag-button');
+    this.cartDrawerOpen.set(true);
+    this.document.body.classList.add('cart-drawer-open');
+    queueMicrotask(() => this.host.nativeElement.querySelector<HTMLElement>('.cart-drawer-close')?.focus());
+  }
+
+  protected closeCart(restoreFocus = true): void {
+    if (!this.cartDrawerOpen()) return;
+    this.cartDrawerOpen.set(false);
+    this.document.body.classList.remove('cart-drawer-open');
+    if (restoreFocus) {
+      const target = this.focusBeforeCart;
+      queueMicrotask(() => target?.isConnected && target.focus());
+    }
+    this.focusBeforeCart = null;
+  }
 
   protected usePlaceholder(event: Event): void {
     const image = event.target as HTMLImageElement;
@@ -289,7 +389,8 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
-    if (this.menuOpen()) this.closeMenu(true);
+    if (this.cartDrawerOpen()) this.closeCart(true);
+    else if (this.menuOpen()) this.closeMenu(true);
     else this.closeDesktopMenu(true);
   }
 

@@ -31,14 +31,6 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProductResponse> getActiveProducts() {
-        return productRepository.findByActiveTrueOrderByNameAsc()
-            .stream()
-            .map(this::response)
-            .toList();
-    }
-
-    @Transactional(readOnly = true)
     public List<ProductResponse> getAllProductsForAdmin() {
         return productRepository.findAllByOrderByNameAsc()
             .stream()
@@ -120,8 +112,15 @@ public class ProductService {
     @Transactional
     public void deleteProduct(Long id) {
         Product product = findProduct(id);
+        List<String> imageUrls = jdbc.query(
+            "SELECT image_url FROM product_images WHERE product_id=?",
+            (rs, row) -> rs.getString(1),
+            id
+        );
         jdbc.update("UPDATE products SET listing_primary_image_id=NULL,listing_hover_image_id=NULL WHERE id=?", id);
         productRepository.delete(product);
+        productRepository.flush();
+        imageUrls.forEach(productImageStorageService::delete);
     }
 
     @Transactional

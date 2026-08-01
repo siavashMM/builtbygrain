@@ -2,7 +2,7 @@ package com.builtbygrain.backend.storefront;
 
 import org.springframework.http.HttpStatus;
 
-final class StorefrontApiException extends RuntimeException {
+public final class StorefrontApiException extends RuntimeException {
     private final HttpStatus status;
 
     StorefrontApiException(HttpStatus status, String message) {
@@ -10,5 +10,5 @@ final class StorefrontApiException extends RuntimeException {
         this.status = status;
     }
 
-    HttpStatus status() { return status; }
+    public HttpStatus status() { return status; }
 }

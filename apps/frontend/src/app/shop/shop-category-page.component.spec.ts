@@ -87,6 +87,7 @@ describe('ShopCategoryPageComponent routing', () => {
   }
 
   function flushNavigation() {
+    http.expectOne('/api/account/auth/session').flush({}, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/api/public/storefront').flush({ settings: { heroImageUrl: null }, navigationGroups: [] });
     http.expectOne('/api/public/categories').flush([]);
   }

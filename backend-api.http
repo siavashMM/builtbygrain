@@ -1,44 +1,58 @@
-# Built by Grain backend API requests.
-# Start PostgreSQL first with `just db-up`, then start the backend with `just backend`.
-
+# Built by Grain backend API requests. The IDE client retains response cookies.
 @baseUrl = http://localhost:8080
 @adminUsername = admin@example.com
 @adminPassword = use-a-long-random-password
-@userUsername = user
-@userPassword = password
-
-# Change this after creating a product if your returned id is different.
+@newAdminPassword = replace-with-a-new-long-random-password
 @productId = 1
 @productSlug = oak-serving-board
 
-### Health check - public
+### Health - public
 GET {{baseUrl}}/api/health
-Accept: application/json
 
-### Get active products from PostgreSQL - public
+### Catalog - public
 GET {{baseUrl}}/api/public/products
-Accept: application/json
 
-### Get one active product by slug - public
+### Product - public
 GET {{baseUrl}}/api/public/products/{{productSlug}}
-Accept: application/json
 
-### List all products, including inactive products - ADMIN only
-GET {{baseUrl}}/api/admin/products
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Accept: application/json
+### Issue pre-login CSRF token
+GET {{baseUrl}}/api/admin/auth/csrf
+> {% client.global.set("csrfToken", response.body.token); %}
 
-### Verify admin login - ADMIN only
+### Login and create a server session
 POST {{baseUrl}}/api/admin/auth/login
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Accept: application/json
-
-### Create product - ADMIN only
-# The backend stores and controls priceCents. Do not trust prices from frontend code.
-POST {{baseUrl}}/api/admin/products
-Authorization: Basic {{adminUsername}} {{adminPassword}}
 Content-Type: application/json
-Accept: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{adminPassword}}"
+}
+
+### Refresh CSRF token after authentication
+GET {{baseUrl}}/api/admin/auth/csrf
+> {% client.global.set("csrfToken", response.body.token); %}
+
+### Inspect admin session
+GET {{baseUrl}}/api/admin/auth/session
+
+### Change password and invalidate every admin session
+POST {{baseUrl}}/api/admin/auth/password
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "currentPassword": "{{adminPassword}}",
+  "newPassword": "{{newAdminPassword}}"
+}
+
+### List all products - ADMIN session
+GET {{baseUrl}}/api/admin/products
+
+### Create product - ADMIN session + CSRF
+POST {{baseUrl}}/api/admin/products
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "Oak Serving Board",
@@ -46,100 +60,23 @@ Accept: application/json
   "description": "Handmade oak board finished with food-safe oil.",
   "priceCents": 4900,
   "currency": "EUR",
-  "imageUrl": "https://example.com/oak-serving-board.jpg",
   "inStock": true,
   "sizes": ["S", "M"],
   "active": true
 }
 
-### Update product - ADMIN only
-PUT {{baseUrl}}/api/admin/products/{{productId}}
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Content-Type: application/json
-Accept: application/json
-
-{
-  "name": "Walnut Serving Board",
-  "slug": "walnut-serving-board",
-  "description": "Handmade walnut board with a smooth food-safe oil finish.",
-  "priceCents": 5900,
-  "currency": "EUR",
-  "imageUrl": "https://example.com/walnut-serving-board.jpg",
-  "inStock": true,
-  "sizes": ["M", "L"],
-  "active": true
-}
-
-### Upload product image - ADMIN only
-POST {{baseUrl}}/api/admin/products/{{productId}}/image
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Content-Type: multipart/form-data; boundary=BuiltByGrainBoundary
-Accept: application/json
-
---BuiltByGrainBoundary
-Content-Disposition: form-data; name="image"; filename="product.png"
-Content-Type: image/png
-
-< ./apps/frontend/public/product-placeholder.svg
---BuiltByGrainBoundary--
-
-### Deactivate product - ADMIN only
+### Deactivate product
 PATCH {{baseUrl}}/api/admin/products/{{productId}}/deactivate
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Accept: application/json
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Activate product - ADMIN only
+### Activate product
 PATCH {{baseUrl}}/api/admin/products/{{productId}}/activate
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Accept: application/json
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Delete product - ADMIN only
+### Delete product
 DELETE {{baseUrl}}/api/admin/products/{{productId}}
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Accept: application/json
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Confirm deactivated products are hidden from public product list
-GET {{baseUrl}}/api/public/products
-Accept: application/json
-
-### User private order test - USER or ADMIN
-GET {{baseUrl}}/api/user/orders/test
-Authorization: Basic {{userUsername}} {{userPassword}}
-Accept: application/json
-
-### User private order test as ADMIN - also allowed
-GET {{baseUrl}}/api/user/orders/test
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Accept: application/json
-
-### Admin product create as USER - should return 403 Forbidden
-POST {{baseUrl}}/api/admin/products
-Authorization: Basic {{userUsername}} {{userPassword}}
-Content-Type: application/json
-Accept: application/json
-
-{
-  "name": "Forbidden Test Product",
-  "slug": "forbidden-test-product",
-  "description": "This should not be created by a USER role.",
-  "priceCents": 1000,
-  "currency": "EUR",
-  "inStock": true,
-  "sizes": [],
-  "active": true
-}
-
-### Invalid product input - should return 400 Bad Request
-POST {{baseUrl}}/api/admin/products
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-Content-Type: application/json
-Accept: application/json
-
-{
-  "name": "",
-  "slug": "",
-  "description": "Invalid because the name is blank and the price is negative.",
-  "priceCents": -1,
-  "currency": "EUR",
-  "active": true
-}
+### Logout and invalidate the session
+POST {{baseUrl}}/api/admin/auth/logout
+X-XSRF-TOKEN: {{csrfToken}}

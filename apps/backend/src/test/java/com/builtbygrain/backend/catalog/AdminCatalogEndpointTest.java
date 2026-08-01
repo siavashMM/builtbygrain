@@ -1,6 +1,7 @@
 package com.builtbygrain.backend.catalog;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -10,15 +11,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.builtbygrain.backend.catalog.CatalogDtos.CategoryRequest;
+import com.builtbygrain.backend.catalog.CatalogDtos.CategoryResponse;
 import com.builtbygrain.backend.product.Product;
 import com.builtbygrain.backend.product.ProductRepository;
 
@@ -34,12 +38,12 @@ class AdminCatalogEndpointTest {
 
     @Test
     void adminCanUpdateAndDeleteCategory() throws Exception {
-        Category category = catalog.create(new CategoryRequest(
+        CategoryResponse category = catalog.create(new CategoryRequest(
             "Endpoint Test", "endpoint-test", null, null, null, 0, true
         ));
 
-        mockMvc.perform(put("/api/admin/categories/{id}", category.getId())
-                .with(httpBasic("admin", "admin"))
+        mockMvc.perform(put("/api/admin/categories/{id}", category.id())
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"name":"Updated Endpoint Test","slug":"updated-endpoint-test",
@@ -49,15 +53,15 @@ class AdminCatalogEndpointTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("Updated Endpoint Test"));
 
-        mockMvc.perform(delete("/api/admin/categories/{id}", category.getId())
+        mockMvc.perform(delete("/api/admin/categories/{id}", category.id())
                 .queryParam("confirmed", "true")
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isNoContent());
     }
 
     @Test
     void onlyAdminCanCreateProductInsideCategory() throws Exception {
-        Category category = catalog.create(new CategoryRequest(
+        CategoryResponse category = catalog.create(new CategoryRequest(
             "Serving Boards", "serving-boards", null, null, null, 0, true
         ));
         String product = """
@@ -66,64 +70,64 @@ class AdminCatalogEndpointTest {
              "currency":"EUR","inStock":true,"sizes":[],"active":true}
             """;
 
-        mockMvc.perform(post("/api/admin/categories/{categoryId}/products", category.getId())
-                .with(httpBasic("user", "password"))
+        mockMvc.perform(post("/api/admin/categories/{categoryId}/products", category.id())
+                .with(user("user").roles("USER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(product))
             .andExpect(status().isForbidden());
 
-        mockMvc.perform(post("/api/admin/categories/{categoryId}/products", category.getId())
-                .with(httpBasic("admin", "admin"))
+        mockMvc.perform(post("/api/admin/categories/{categoryId}/products", category.id())
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(product))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.name").value("Oak Board"))
-            .andExpect(jsonPath("$.categoryId").value(category.getId()))
+            .andExpect(jsonPath("$.categoryId").value(category.id()))
             .andExpect(jsonPath("$.categoryName").value("Serving Boards"));
     }
 
     @Test
-    void onlyAdminCanResetCatalogWithExactConfirmation() throws Exception {
+    void catalogResetEndpointHasBeenRemoved() throws Exception {
         mockMvc.perform(post("/api/admin/catalog/reset")
-                .with(httpBasic("user", "password"))
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"confirmation\":\"RESET CATALOG\"}"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isNotFound());
+    }
 
-        mockMvc.perform(post("/api/admin/catalog/reset")
-                .with(httpBasic("admin", "admin"))
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void creatingThirdLevelCategoryReturnsSuccessAfterItsTransactionCloses() throws Exception {
+        long rootId = createSimpleCategory("Response Root", null);
+        long childId = createSimpleCategory("Response Child", rootId);
+
+        mockMvc.perform(post("/api/admin/categories").queryParam("simple", "true")
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"confirmation\":\"reset\"}"))
-            .andExpect(status().isBadRequest());
+                .content("""
+                    {"name":"Response Grandchild","parentId":%d}
+                    """.formatted(childId)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.parentId").value(childId))
+            .andExpect(jsonPath("$.path").value("/category/response-root/response-child/response-grandchild"));
 
-        catalog.create(new CategoryRequest(
-            "Reset Test", "reset-test", null, null, null, 0, true
-        ));
-
-        mockMvc.perform(post("/api/admin/catalog/reset")
-                .with(httpBasic("admin", "admin"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"confirmation\":\"RESET CATALOG\"}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.categoriesDeleted").isNumber())
-            .andExpect(jsonPath("$.productsDeleted").isNumber())
-            .andExpect(jsonPath("$.variantsDeleted").isNumber());
-
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/catalog/tree")
-                .with(httpBasic("admin", "admin")))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isEmpty());
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM categories WHERE parent_id=? AND name=?",
+            Integer.class, childId, "Response Grandchild"
+        );
+        org.assertj.core.api.Assertions.assertThat(count).isEqualTo(1);
     }
 
     @Test
     void publicNavigationIncludesOnlyActiveBranchesContainingPublicProducts() throws Exception {
-        Category root = catalog.create(new CategoryRequest("Public Shelves", "public-shelves", null, null, null, 0, true));
-        Category child = catalog.create(new CategoryRequest("Floating", "floating", root.getId(), null, null, 0, true));
+        CategoryResponse root = catalog.create(new CategoryRequest("Public Shelves", "public-shelves", null, null, null, 0, true));
+        CategoryResponse child = catalog.create(new CategoryRequest("Floating", "floating", root.id(), null, null, 0, true));
         catalog.create(new CategoryRequest("Hidden Shelves", "hidden-shelves", null, null, null, 1, false));
         catalog.create(new CategoryRequest("Empty Shelves", "empty-shelves", null, null, null, 2, true));
 
-        mockMvc.perform(post("/api/admin/categories/{categoryId}/products", child.getId())
-                .with(httpBasic("admin", "admin"))
+        mockMvc.perform(post("/api/admin/categories/{categoryId}/products", child.id())
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"name":"Public Product","slug":"public-navigation-product","description":null,
@@ -161,9 +165,9 @@ class AdminCatalogEndpointTest {
 
     @Test
     void publicCategoryPageIncludesDirectAndActiveDescendantProductsForNestedPaths() throws Exception {
-        Category office = catalog.create(new CategoryRequest("Endpoint Office", "endpoint-office", null, "Office pieces", null, 600, true));
-        Category desks = catalog.create(new CategoryRequest("Endpoint Desks", "endpoint-desks", office.getId(), "Desks", null, 0, true));
-        Category standing = catalog.create(new CategoryRequest("Endpoint Standing", "endpoint-standing", desks.getId(), null, null, 0, true));
+        CategoryResponse office = catalog.create(new CategoryRequest("Endpoint Office", "endpoint-office", null, "Office pieces", null, 600, true));
+        CategoryResponse desks = catalog.create(new CategoryRequest("Endpoint Desks", "endpoint-desks", office.id(), "Desks", null, 0, true));
+        CategoryResponse standing = catalog.create(new CategoryRequest("Endpoint Standing", "endpoint-standing", desks.id(), null, null, 0, true));
         createPublicProduct(office, "Office Direct", "endpoint-office-direct");
         createPublicProduct(desks, "Desk Direct", "endpoint-desk-direct");
         createPublicProduct(standing, "Standing Direct", "endpoint-standing-direct");
@@ -184,9 +188,22 @@ class AdminCatalogEndpointTest {
             .andExpect(jsonPath("$.products[0].slug").value("endpoint-standing-direct"));
     }
 
-    private void createPublicProduct(Category category, String name, String slug) throws Exception {
-        mockMvc.perform(post("/api/admin/categories/{categoryId}/products", category.getId())
-                .with(httpBasic("admin", "admin"))
+    private long createSimpleCategory(String name, Long parentId) throws Exception {
+        String parent = parentId == null ? "null" : parentId.toString();
+        String body = mockMvc.perform(post("/api/admin/categories").queryParam("simple", "true")
+                .with(user("admin").roles("ADMIN")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"%s","parentId":%s}
+                    """.formatted(name, parent)))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        return new tools.jackson.databind.ObjectMapper().readTree(body).get("id").asLong();
+    }
+
+    private void createPublicProduct(CategoryResponse category, String name, String slug) throws Exception {
+        mockMvc.perform(post("/api/admin/categories/{categoryId}/products", category.id())
+                .with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"name":"%s","slug":"%s","description":null,
@@ -202,7 +219,7 @@ class AdminCatalogEndpointTest {
         Long imageId=jdbc.queryForObject("SELECT id FROM product_images WHERE product_id=?",Long.class,product.getId());
 
         mockMvc.perform(delete("/api/admin/products/{productId}/catalog-images/{imageId}",product.getId(),imageId)
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isNoContent());
     }
 }

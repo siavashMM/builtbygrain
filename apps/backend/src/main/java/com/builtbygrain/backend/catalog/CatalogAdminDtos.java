@@ -7,12 +7,8 @@ import jakarta.validation.constraints.*;
 public final class CatalogAdminDtos {
     private CatalogAdminDtos() {}
 
-    public record CategoryDetails(Long id, Long parentId, String name, String slug, String description,
-        String imageUrl, int sortOrder, boolean active, String breadcrumb) {}
     public record StatusRequest(@NotNull Boolean active) {}
     public record ProductMoveRequest(@NotNull Long categoryId) {}
-    public record CatalogResetRequest(@NotBlank String confirmation) {}
-    public record CatalogResetResponse(int productsDeleted, int variantsDeleted, int categoriesDeleted) {}
 
     public record OptionValueDto(Long id, String label, String code, String swatchHex, String swatchImageUrl,
         String extraLabel, int sortOrder, boolean active) {}
@@ -38,10 +34,22 @@ public final class CatalogAdminDtos {
     public record VariantUpdateRequest(@Size(max=120) String sku, @PositiveOrZero long regularPriceCents,
         @PositiveOrZero Long salePriceCents, @PositiveOrZero int stockQuantity,
         @NotBlank @Pattern(regexp="IN_STOCK|LOW_STOCK|OUT_OF_STOCK|BACKORDER|PREORDER|DISCONTINUED") String availabilityStatus,
-        @NotNull Boolean active, @NotNull Boolean allowBackorder, @Size(max=160) String deliveryEstimate) {}
-    public record BulkVariantUpdateRequest(@NotEmpty List<Long> variantIds, Long regularPriceCents,
-        Long priceDeltaCents, Double pricePercent, Long salePriceCents, Integer stockQuantity, Integer addStock, String availabilityStatus,
-        Boolean active, Boolean allowBackorder, String deliveryEstimate) {}
+        @NotNull Boolean active, @NotNull Boolean allowBackorder, @Size(max=160) String deliveryEstimate) {
+        @AssertTrue(message = "Sale price must not exceed regular price")
+        public boolean pricesAreCoherent() {
+            return salePriceCents == null || salePriceCents <= regularPriceCents;
+        }
+    }
+    public record BulkVariantUpdateRequest(@NotEmpty List<@NotNull Long> variantIds,
+        @PositiveOrZero Long regularPriceCents, Long priceDeltaCents, @DecimalMin("-100") Double pricePercent,
+        @PositiveOrZero Long salePriceCents, @PositiveOrZero Integer stockQuantity, Integer addStock,
+        @Pattern(regexp="IN_STOCK|LOW_STOCK|OUT_OF_STOCK|BACKORDER|PREORDER|DISCONTINUED") String availabilityStatus,
+        Boolean active, Boolean allowBackorder, @Size(max=160) String deliveryEstimate) {
+        @AssertTrue(message = "Sale price must not exceed regular price")
+        public boolean pricesAreCoherent() {
+            return salePriceCents == null || regularPriceCents == null || salePriceCents <= regularPriceCents;
+        }
+    }
 
     public record ProductImageDto(Long id, String url, String altText, String filename, int sortOrder,
         boolean shared, boolean active, List<String> usages) {}

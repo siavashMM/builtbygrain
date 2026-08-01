@@ -1,3 +1,5 @@
+set dotenv-load := true
+
 # Show all available commands in this Justfile.
 help:
     @just --list
@@ -8,7 +10,7 @@ backend:
 
 # Run backend tests with the Maven Wrapper from apps/backend.
 backend-test:
-    cd apps/backend && ./mvnw test
+    cd apps/backend && env -u DEBUG ./mvnw test
 
 # Start the Angular development server from apps/frontend.
 frontend:
@@ -20,7 +22,19 @@ frontend-test:
 
 # Start the local PostgreSQL container using Podman Compose.
 db-up:
-    podman compose -f infra/podman/compose.yaml up -d
+    podman compose -f infra/podman/compose.yaml up -d postgres
+
+# Start the loopback-only S3-compatible local object store.
+object-store-up:
+    podman compose -f infra/podman/compose.yaml up -d minio
+
+# Start the local email catcher used by password reset.
+mail-up:
+    podman compose -f infra/podman/compose.yaml up -d mailpit
+
+# Follow local object-store logs.
+object-store-logs:
+    podman compose -f infra/podman/compose.yaml logs -f minio
 
 # Stop the local PostgreSQL container using Podman Compose.
 db-down:
@@ -31,7 +45,7 @@ db-logs:
     podman compose -f infra/podman/compose.yaml logs -f postgres
 
 # Start the database, then print how to run the app processes separately.
-dev: db-up
+dev: db-up object-store-up mail-up
     @echo "Database is starting or already running."
     @echo "Open one terminal and run: just backend"
     @echo "Open another terminal and run: just frontend"
@@ -42,3 +56,12 @@ clean:
 
 # Run backend and frontend tests.
 check: backend-test frontend-test
+
+# Run the complete local verification suite used before merging a batch.
+verify: backend-test frontend-test
+    cd apps/frontend && npm run build
+
+# Audit JavaScript and Java dependencies; the first Maven scan populates a large vulnerability database.
+security-check:
+    cd apps/frontend && npm audit --audit-level=high
+    cd apps/backend && env -u DEBUG ./mvnw org.owasp:dependency-check-maven:12.2.2:check -DfailBuildOnCVSS=7

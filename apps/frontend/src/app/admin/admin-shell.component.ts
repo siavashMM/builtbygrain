@@ -36,7 +36,9 @@ export class AdminShellComponent {
   }
 
   protected signOut(): void {
-    this.auth.logout();
-    void this.router.navigate(['/admin/login']);
+    this.auth.logout().subscribe({
+      next: () => void this.router.navigate(['/admin/login']),
+      error: () => void this.router.navigate(['/admin/login'])
+    });
   }
 }

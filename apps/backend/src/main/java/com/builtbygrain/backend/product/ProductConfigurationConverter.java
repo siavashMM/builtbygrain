@@ -1,7 +1,7 @@
 package com.builtbygrain.backend.product;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
@@ -13,7 +13,7 @@ public class ProductConfigurationConverter implements AttributeConverter<Product
     public String convertToDatabaseColumn(ProductConfiguration value) {
         try {
             return MAPPER.writeValueAsString(value == null ? ProductConfiguration.empty() : value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("Invalid product configuration", exception);
         }
     }
@@ -23,7 +23,7 @@ public class ProductConfigurationConverter implements AttributeConverter<Product
         if (value == null || value.isBlank()) return ProductConfiguration.empty();
         try {
             return MAPPER.readValue(value, ProductConfiguration.class);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("Invalid stored product configuration", exception);
         }
     }

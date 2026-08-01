@@ -8,10 +8,13 @@ import { formatPrice } from './price.util';
   imports: [RouterLink],
   template: `
     <article class="product-card listing-product-card">
-      <a class="listing-image-link" [routerLink]="['/products', product.slug]" [attr.aria-label]="'View ' + product.name">
+      <a class="listing-image-link" [routerLink]="['/products', product.slug]" [attr.aria-label]="'View ' + product.name"
+        (pointerenter)="enableHover()" (focusin)="enableHover()">
         <span class="product-card-index" aria-hidden="true">Built to last</span>
         <img class="listing-image listing-image-primary" [src]="primaryImage()" [alt]="product.name" loading="lazy" (error)="usePlaceholder($event)">
-        <img class="listing-image listing-image-hover" [src]="hoverImage()" alt="" aria-hidden="true" loading="lazy" (error)="usePlaceholder($event)">
+        @if (hoverEnabled()) {
+          <img class="listing-image listing-image-hover" [src]="hoverImage()" alt="" aria-hidden="true" loading="lazy" (error)="usePlaceholder($event)">
+        }
       </a>
       <div class="listing-product-copy">
         <h3><a [routerLink]="['/products', product.slug]">{{ product.name }}</a></h3>
@@ -42,13 +45,17 @@ export class ProductCardComponent {
   // Kept as a public output for compatibility with existing recommendation hosts.
   @Output() add = new EventEmitter<{ product: ProductCard; colorId: number | null }>();
   protected readonly selectedColorId = signal<number | null>(null);
+  protected readonly hoverEnabled = signal(false);
   private readonly selectedSwatch = computed(() => this.product.colorSwatches.find(swatch => swatch.id === this.selectedColorId()) ?? null);
   protected readonly primaryImage = computed(() => this.selectedSwatch()?.primaryImageUrl || this.product.primaryImageUrl || '/product-placeholder.svg');
   protected readonly hoverImage = computed(() => this.selectedSwatch()?.hoverImageUrl || this.product.hoverImageUrl || this.primaryImage());
 
   protected selectColor(swatch: ProductCardColorSwatch): void {
     this.selectedColorId.set(swatch.id);
+    this.enableHover();
   }
+
+  protected enableHover(): void { this.hoverEnabled.set(true); }
 
   protected formatFromPrice(): string {
     return formatPrice(this.product.fromPriceCents, this.product.currency);

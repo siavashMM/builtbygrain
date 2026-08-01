@@ -21,7 +21,7 @@ describe('ShopCatalogService', () => {
     request.flush([]);
   });
 
-  it('shares concurrent storefront requests but refreshes after the response completes', () => {
+  it('shares storefront requests for the 60-second cache window', () => {
     const service = TestBed.inject(ShopCatalogService);
     service.storefront().subscribe();
     service.storefront().subscribe();
@@ -30,8 +30,7 @@ describe('ShopCatalogService', () => {
     request.flush({ settings: {}, navigationGroups: [] });
 
     service.storefront().subscribe();
-    TestBed.inject(HttpTestingController).expectOne('/api/public/storefront')
-      .flush({ settings: {}, navigationGroups: [] });
+    TestBed.inject(HttpTestingController).expectNone('/api/public/storefront');
   });
 
   it('loads a category page by its complete nested path', () => {

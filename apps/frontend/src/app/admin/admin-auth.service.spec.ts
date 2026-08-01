@@ -1,7 +1,7 @@
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { AdminAuthService, adminAuthInterceptor } from './admin-auth.service';
+import { AdminAuthService } from './admin-auth.service';
 
 describe('AdminAuthService', () => {
   let auth: AdminAuthService;
@@ -10,10 +10,7 @@ describe('AdminAuthService', () => {
   beforeEach(() => {
     sessionStorage.clear();
     TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(withInterceptors([adminAuthInterceptor])),
-        provideHttpClientTesting()
-      ]
+      providers: [provideHttpClient(), provideHttpClientTesting()]
     });
     auth = TestBed.inject(AdminAuthService);
     http = TestBed.inject(HttpTestingController);
@@ -24,28 +21,70 @@ describe('AdminAuthService', () => {
     sessionStorage.clear();
   });
 
-  it('stores a successful admin login and sends its credentials to admin APIs', () => {
-    auth.login('admin', 'secret').subscribe();
+  it('logs in through a CSRF-protected server session without storing credentials', () => {
+    auth.login('admin', 'secret').subscribe(response => expect(response.admin).toBeTrue());
+
+    http.expectOne('/api/admin/auth/csrf').flush({
+      headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'first-token'
+    });
 
     const login = http.expectOne('/api/admin/auth/login');
-    expect(login.request.headers.get('Authorization')).toBe(`Basic ${btoa('admin:secret')}`);
+    expect(login.request.method).toBe('POST');
+    expect(login.request.body).toEqual({ username: 'admin', password: 'secret' });
+    expect(login.request.headers.has('Authorization')).toBeFalse();
     login.flush({ username: 'admin', admin: true });
 
-    auth.validateSession().subscribe(valid => expect(valid).toBeTrue());
-    const validation = http.expectOne('/api/admin/auth/login');
-    expect(validation.request.headers.get('Authorization')).toBe(`Basic ${btoa('admin:secret')}`);
-    validation.flush({ username: 'admin', admin: true });
+    http.expectOne('/api/admin/auth/csrf').flush({
+      headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'rotated-token'
+    });
+
+    expect(auth.getUsername()).toBe('admin');
+    expect(sessionStorage.length).toBe(0);
   });
 
-  it('does not reuse credentials from the obsolete unvalidated session format', () => {
-    sessionStorage.setItem('builtbygrain.admin.basicToken', btoa('user:password'));
-    sessionStorage.setItem('builtbygrain.admin.username', 'user');
+  it('validates and clears the server session without browser storage', () => {
+    auth.validateSession().subscribe(valid => expect(valid).toBeTrue());
 
-    expect(auth.isLoggedIn()).toBeFalse();
-    auth.validateSession().subscribe({ error: () => undefined });
-
-    const validation = http.expectOne('/api/admin/auth/login');
+    const validation = http.expectOne('/api/admin/auth/session');
+    expect(validation.request.method).toBe('GET');
     expect(validation.request.headers.has('Authorization')).toBeFalse();
-    validation.flush({ error: 'Unauthorized' }, { status: 401, statusText: 'Unauthorized' });
+    validation.flush({ username: 'admin', admin: true });
+
+    expect(auth.getUsername()).toBe('admin');
+    auth.clear();
+    expect(auth.getUsername()).toBeNull();
+  });
+
+  it('invalidates the server session and refreshes the CSRF cookie on logout', () => {
+    auth.logout().subscribe();
+
+    const logout = http.expectOne('/api/admin/auth/logout');
+    expect(logout.request.method).toBe('POST');
+    logout.flush(null);
+
+    http.expectOne('/api/admin/auth/csrf').flush({
+      headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'signed-out-token'
+    });
+    expect(auth.getUsername()).toBeNull();
+  });
+
+  it('changes the password, refreshes CSRF, and clears the local session state', () => {
+    auth.validateSession().subscribe();
+    http.expectOne('/api/admin/auth/session').flush({ username: 'admin', admin: true });
+
+    auth.changePassword('current-secret', 'a-new-secure-password').subscribe();
+
+    const change = http.expectOne('/api/admin/auth/password');
+    expect(change.request.method).toBe('POST');
+    expect(change.request.body).toEqual({
+      currentPassword: 'current-secret',
+      newPassword: 'a-new-secure-password'
+    });
+    change.flush(null);
+
+    http.expectOne('/api/admin/auth/csrf').flush({
+      headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'signed-out-token'
+    });
+    expect(auth.getUsername()).toBeNull();
   });
 });

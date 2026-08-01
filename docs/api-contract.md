@@ -145,6 +145,10 @@ Navigation group create/update bodies are `{ "label": "Living", "active": true }
 
 ```http
 POST /api/admin/auth/login
+GET  /api/admin/auth/session
+GET  /api/admin/auth/csrf
+POST /api/admin/auth/password
+POST /api/admin/auth/logout
 GET /api/admin/products
 POST /api/admin/products
 PUT /api/admin/products/{id}
@@ -175,7 +179,13 @@ The listing-image update body is `{ "imageId": 123 }`; use `null` to clear a rol
 
 Deleting a catalog image removes it from the product gallery, clears both product-card roles, removes all variant assignments, compacts the remaining gallery order, and deletes the stored upload.
 
-Admin login uses HTTP Basic credentials and returns:
+Admin login accepts JSON credentials and returns:
+
+```json
+{ "username": "admin@example.com", "password": "use-a-long-random-password" }
+```
+
+The success response is:
 
 ```json
 {
@@ -183,6 +193,8 @@ Admin login uses HTTP Basic credentials and returns:
   "admin": true
 }
 ```
+
+The login response creates an HttpOnly server-session cookie. Mutating admin requests must include the token from the `XSRF-TOKEN` cookie as `X-XSRF-TOKEN`. `GET /api/admin/auth/session` returns the same identity shape or 401. `POST /api/admin/auth/password` accepts `{ "currentPassword": "...", "newPassword": "..." }`, requires at least 12 characters for the new password, and returns 204 after invalidating all of that administrator's sessions. CSRF-protected logout invalidates the current session and returns 204. Throttled logins return 429 with `Retry-After`; other authentication failures return a generic 401.
 
 Admin product request body:
 

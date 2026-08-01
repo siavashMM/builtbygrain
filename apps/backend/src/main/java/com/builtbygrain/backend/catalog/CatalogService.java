@@ -6,9 +6,9 @@ import java.util.*;
 import java.text.Normalizer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import com.builtbygrain.backend.product.*;
 
 @Service
@@ -17,18 +17,20 @@ public class CatalogService {
     private final ProductRepository products;
     private final ProductCardService productCards;
     private final JdbcTemplate jdbc;
-    public CatalogService(CategoryRepository categories, ProductRepository products, ProductCardService productCards, JdbcTemplate jdbc) {
+    public CatalogService(CategoryRepository categories, ProductRepository products, ProductCardService productCards,
+        JdbcTemplate jdbc) {
         this.categories = categories; this.products = products; this.productCards = productCards; this.jdbc = jdbc;
     }
     @Transactional(readOnly=true)
-    public List<TreeNode> roots() { return categories.findByParentIsNullOrderBySortOrderAscNameAsc().stream().map(this::categoryNode).toList(); }
+    public List<TreeNode> roots() {
+        Map<Long, Long> productCounts = directProductCounts();
+        Set<Long> parents = categoryParents();
+        return categories.findByParentIsNullOrderBySortOrderAscNameAsc().stream()
+            .map(category -> categoryNode(category, productCounts, parents)).toList();
+    }
     @Transactional(readOnly=true)
     public List<CategoryResponse> allCategories() { return categories.findAll().stream()
         .sorted(Comparator.comparing(Category::getName, String.CASE_INSENSITIVE_ORDER)).map(CategoryResponse::from).toList(); }
-    @Transactional(readOnly=true)
-    public List<CategoryResponse> activeCategories() { return categories.findAll().stream().filter(Category::isActive)
-        .sorted(Comparator.comparingInt(Category::getSortOrder).thenComparing(Category::getName, String.CASE_INSENSITIVE_ORDER))
-        .map(CategoryResponse::from).toList(); }
     @Transactional(readOnly=true)
     public CategoryResponse details(long id) { return CategoryResponse.from(category(id)); }
     @Transactional(readOnly=true)
@@ -37,7 +39,10 @@ public class CatalogService {
         if (parts.length != 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid catalog node id");
         long id = Long.parseLong(parts[1]);
         if (parts[0].equals("category")) {
-            return categories.findByParentIdOrderBySortOrderAscNameAsc(id).stream().map(this::categoryNode).toList();
+            Map<Long, Long> productCounts = directProductCounts();
+            Set<Long> parents = categoryParents();
+            return categories.findByParentIdOrderBySortOrderAscNameAsc(id).stream()
+                .map(category -> categoryNode(category, productCounts, parents)).toList();
         }
         return List.of();
     }
@@ -45,7 +50,9 @@ public class CatalogService {
     public List<AdminCategoryNode> adminTree() {
         List<Category> all = sortedCategories();
         Map<Long, List<Category>> children = groupChildren(all);
-        return children.getOrDefault(null, List.of()).stream().map(category -> adminNode(category, children)).toList();
+        Map<Long, Long> productCounts = directProductCounts();
+        return children.getOrDefault(null, List.of()).stream()
+            .map(category -> adminNode(category, children, productCounts)).toList();
     }
     @Transactional(readOnly=true)
     public List<CategoryOption> options() {
@@ -60,8 +67,7 @@ public class CatalogService {
     public List<NavigationCategory> navigation() {
         List<Category> all = sortedCategories();
         Map<Long, List<Category>> children = groupChildren(all);
-        Set<Long> productCategories = products.findByActiveTrueAndStatus(Product.ProductStatus.ACTIVE).stream()
-            .map(product -> product.getCategory().getId()).collect(java.util.stream.Collectors.toSet());
+        Set<Long> productCategories = new HashSet<>(products.findActiveCategoryIds());
         return children.getOrDefault(null, List.of()).stream()
             .map(category -> navigationNode(category, children, productCategories, ""))
             .flatMap(Optional::stream).toList();
@@ -95,67 +101,68 @@ public class CatalogService {
         Map<Long, List<Category>> children = groupChildren(all);
         Set<Long> categoryIds = new HashSet<>();
         collectActiveDescendantIds(selected, children, categoryIds);
-        List<ProductCardDto> matchingProducts = productCards.activeCards().stream()
-            .filter(product -> categoryIds.contains(product.categoryId())).toList();
+        List<ProductCardDto> matchingProducts = productCards.activeCardsForCategoryIds(categoryIds);
         return new CategoryPageResponse(CategoryResponse.from(selected), breadcrumbs, matchingProducts);
     }
     @Transactional
-    public Category create(CategoryCreateRequest request) {
+    public CategoryResponse create(CategoryCreateRequest request) {
         Category parent = request.parentId() == null ? null : category(request.parentId());
         String slug = uniqueSlug(request.name(), parent, -1L);
-        return categories.save(new Category(request.name().trim(), slug, parent, nextSort(parent)));
+        return CategoryResponse.from(categories.save(new Category(request.name().trim(), slug, parent, nextSort(parent))));
     }
     @Transactional
-    public Category rename(long id, CategoryNameRequest request) {
+    public CategoryResponse rename(long id, CategoryNameRequest request) {
         Category value = category(id);
         value.rename(request.name().trim());
-        return value;
+        return CategoryResponse.from(value);
     }
     @Transactional
-    public Category move(long id, CategoryParentRequest request) {
+    public CategoryResponse move(long id, CategoryParentRequest request) {
         Category value = category(id);
         Category parent = request.parentId() == null ? null : category(request.parentId());
         assertValidParent(value, parent);
         ensureSlug(value.getSlug(), parent, id);
         value.moveTo(parent, request.position() == null ? nextSort(parent) : request.position());
         normalizeSiblings(parent);
-        return value;
+        return CategoryResponse.from(value);
     }
     @Transactional
-    public Category position(long id, CategoryPositionRequest request) {
+    public CategoryResponse position(long id, CategoryPositionRequest request) {
         Category value = category(id);
         List<Category> siblings = siblings(value.getParent()).stream().filter(item -> !item.getId().equals(id)).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         siblings.add(Math.min(request.position(), siblings.size()), value);
         for (int index = 0; index < siblings.size(); index++) siblings.get(index).moveTo(value.getParent(), index);
-        return value;
+        return CategoryResponse.from(value);
     }
     @Transactional
-    public Category create(CategoryRequest request) {
+    public CategoryResponse create(CategoryRequest request) {
         Category parent = request.parentId() == null ? null : category(request.parentId());
         ensureSlug(request.slug(), parent, -1L);
         Category value = new Category(request.name().trim(), request.slug(), parent,
             request.sortOrder() == null ? nextSort(parent) : request.sortOrder());
         value.update(request.name().trim(), request.slug(), request.description(), request.imageUrl(), request.active());
-        return categories.save(value);
+        return CategoryResponse.from(categories.save(value));
     }
     @Transactional
-    public Category update(long id, CategoryRequest request) {
+    public CategoryResponse update(long id, CategoryRequest request) {
         Category value = category(id);
         Category parent = request.parentId() == null ? null : category(request.parentId());
         assertValidParent(value, parent); ensureSlug(request.slug(), parent, id);
         value.update(request.name().trim(), request.slug(), request.description(), request.imageUrl(), request.active());
-        value.moveTo(parent, request.sortOrder() == null ? value.getSortOrder() : request.sortOrder()); return value;
+        value.moveTo(parent, request.sortOrder() == null ? value.getSortOrder() : request.sortOrder());
+        return CategoryResponse.from(value);
     }
     @Transactional
-    public Category move(long id, MoveRequest request) {
+    public CategoryResponse move(long id, MoveRequest request) {
         Category value = category(id); Category parent = request.parentId() == null ? null : category(request.parentId());
-        assertValidParent(value, parent); ensureSlug(value.getSlug(), parent, id); value.moveTo(parent, request.sortOrder()); return value;
+        assertValidParent(value, parent); ensureSlug(value.getSlug(), parent, id); value.moveTo(parent, request.sortOrder());
+        return CategoryResponse.from(value);
     }
     @Transactional
-    public Category setStatus(long id, StatusRequest request) {
+    public CategoryResponse setStatus(long id, StatusRequest request) {
         Category value = category(id);
         value.setActive(request.active());
-        return value;
+        return CategoryResponse.from(value);
     }
     @Transactional
     public void delete(long id, boolean confirmed) {
@@ -166,25 +173,27 @@ public class CatalogService {
         if (productCount > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "This category cannot be deleted because " + productCount + " products are assigned to it. Move those products first.");
         categories.delete(value);
     }
-    @Transactional
-    public CatalogResetResponse reset(CatalogResetRequest request) {
-        if (!"RESET CATALOG".equals(request.confirmation())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Type RESET CATALOG to confirm");
-        }
-        int deletedVariants = jdbc.update("DELETE FROM product_variants");
-        int deletedProducts = jdbc.update("DELETE FROM products");
-        int deletedCategories = jdbc.update("DELETE FROM categories");
-        return new CatalogResetResponse(deletedProducts, deletedVariants, deletedCategories);
-    }
     private Category category(long id) { return categories.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found")); }
-    private TreeNode categoryNode(Category c) { long count=products.countByCategoryId(c.getId()); boolean hasChildren=!categories.findByParentIdOrderBySortOrderAscNameAsc(c.getId()).isEmpty(); return new TreeNode("category:"+c.getId(), NodeType.CATEGORY,
+    private TreeNode categoryNode(Category c, Map<Long, Long> productCounts, Set<Long> parents) { long count=productCounts.getOrDefault(c.getId(), 0L); boolean hasChildren=parents.contains(c.getId()); return new TreeNode("category:"+c.getId(), NodeType.CATEGORY,
         c.getParent()==null?null:"category:"+c.getParent().getId(), c.getName(), count+" product"+(count==1?"":"s"), c.isActive()?"ACTIVE":"INACTIVE", hasChildren, "folder", c.getSortOrder()); }
     private int nextSort(Category parent) { return parent == null ? categories.findByParentIsNullOrderBySortOrderAscNameAsc().size() : categories.findByParentIdOrderBySortOrderAscNameAsc(parent.getId()).size(); }
     private void ensureSlug(String slug, Category parent, long id) { boolean exists = parent == null ? categories.existsByParentIsNullAndSlugAndIdNot(slug,id) : categories.existsByParentIdAndSlugAndIdNot(parent.getId(),slug,id); if (exists) throw new ResponseStatusException(HttpStatus.CONFLICT,"Category slug already exists at this level"); }
     private void assertValidParent(Category value, Category parent) { for (Category cursor=parent; cursor!=null; cursor=cursor.getParent()) if (cursor.getId().equals(value.getId())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"A category cannot be its own parent or descendant"); }
     private List<Category> sortedCategories() { return categories.findAll().stream().sorted(Comparator.comparing((Category c) -> c.getParent() == null ? -1L : c.getParent().getId()).thenComparingInt(Category::getSortOrder).thenComparing(Category::getName, String.CASE_INSENSITIVE_ORDER)).toList(); }
     private Map<Long,List<Category>> groupChildren(List<Category> all) { Map<Long,List<Category>> result = new HashMap<>(); for (Category category : all) result.computeIfAbsent(category.getParent() == null ? null : category.getParent().getId(), ignored -> new ArrayList<>()).add(category); return result; }
-    private AdminCategoryNode adminNode(Category category, Map<Long,List<Category>> children) { return new AdminCategoryNode(category.getId(), category.getParent()==null?null:category.getParent().getId(), category.getName(), category.getSlug(), category.isActive(), category.getSortOrder(), products.countByCategoryId(category.getId()), children.getOrDefault(category.getId(),List.of()).stream().map(child -> adminNode(child, children)).toList()); }
+    private AdminCategoryNode adminNode(Category category, Map<Long,List<Category>> children, Map<Long, Long> productCounts) { return new AdminCategoryNode(category.getId(), category.getParent()==null?null:category.getParent().getId(), category.getName(), category.getSlug(), category.isActive(), category.getSortOrder(), productCounts.getOrDefault(category.getId(), 0L), children.getOrDefault(category.getId(),List.of()).stream().map(child -> adminNode(child, children, productCounts)).toList()); }
+
+    private Map<Long, Long> directProductCounts() {
+        return jdbc.query("SELECT category_id, COUNT(*) product_count FROM products GROUP BY category_id", rs -> {
+            Map<Long, Long> counts = new HashMap<>();
+            while (rs.next()) counts.put(rs.getLong("category_id"), rs.getLong("product_count"));
+            return Map.copyOf(counts);
+        });
+    }
+
+    private Set<Long> categoryParents() {
+        return Set.copyOf(jdbc.queryForList("SELECT DISTINCT parent_id FROM categories WHERE parent_id IS NOT NULL", Long.class));
+    }
     private Optional<NavigationCategory> navigationNode(Category category, Map<Long,List<Category>> children, Set<Long> productCategories, String parentPath) {
         if (!category.isActive()) return Optional.empty();
         String path = parentPath + "/" + category.getSlug();

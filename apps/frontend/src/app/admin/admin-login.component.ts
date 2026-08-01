@@ -18,9 +18,7 @@ export class AdminLoginComponent {
   protected readonly password = signal('');
   protected readonly state = signal<LoginState>('idle');
   protected readonly errorMessage = signal(
-    this.route.snapshot.queryParamMap.get('reason') === 'admin-required'
-      ? 'Your previous credentials were not an administrator account. Sign in with an enabled admin account.'
-      : ''
+    this.loginMessage()
   );
 
   protected login(event: SubmitEvent): void {
@@ -38,5 +36,16 @@ export class AdminLoginComponent {
         this.errorMessage.set('Admin username or password is wrong.');
       }
     });
+  }
+
+  private loginMessage(): string {
+    const reason = this.route.snapshot.queryParamMap.get('reason');
+    if (reason === 'admin-required') {
+      return 'Your previous credentials were not an administrator account. Sign in with an enabled admin account.';
+    }
+    if (reason === 'password-changed') {
+      return 'Your password was changed. Sign in again with your new password.';
+    }
+    return '';
   }
 }

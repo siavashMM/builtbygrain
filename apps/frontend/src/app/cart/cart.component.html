@@ -1,42 +1,152 @@
-<main class="shop-page">
+<main id="main-content" class="cart-page" tabindex="-1">
   <app-shop-navigation />
-  <section class="content-panel cart-panel" aria-labelledby="cart-title">
-    <div class="section-heading">
-      <p class="eyebrow">Your selection</p>
+
+  <nav class="checkout-progress" aria-label="Checkout progress">
+    <ol>
+      <li class="active" aria-current="step">
+        <span class="step-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 8.5h14l-1 12H6l-1-12Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+        </span>
+        <span><small>Step 1</small>Bag</span>
+      </li>
+      <li>
+        <span class="step-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>
+        </span>
+        <span><small>Step 2</small>Account</span>
+      </li>
+      <li>
+        <span class="step-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M3 6h11v11H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        </span>
+        <span><small>Step 3</small>Delivery</span>
+      </li>
+      <li>
+        <span class="step-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18"/></svg>
+        </span>
+        <span><small>Step 4</small>Payment</span>
+      </li>
+    </ol>
+  </nav>
+
+  <section class="cart-heading" aria-labelledby="cart-title">
+    <div>
+      <p class="cart-eyebrow">Your selection</p>
       <h1 id="cart-title">Shopping bag</h1>
     </div>
+    @if (cart.items().length > 0) {
+      <p>{{ cart.itemCount() }} {{ cart.itemCount() === 1 ? 'piece' : 'pieces' }}, reserved for your checkout</p>
+    }
+  </section>
+
+  <section class="cart-layout">
     @if (cart.items().length === 0) {
       <div class="empty-cart">
-        <p>Your bag is empty.</p>
-        <a routerLink="/" class="text-link">Browse the collection</a>
+        <span class="empty-cart-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 8.5h14l-1 12H6l-1-12Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+        </span>
+        <p class="cart-eyebrow">Your bag is ready when you are</p>
+        <h2>Nothing here just yet.</h2>
+        <p>Explore considered pieces, made with honest materials and built to stay with you.</p>
+        <a routerLink="/" fragment="featured-products" class="primary-link">Explore the collection <span aria-hidden="true">→</span></a>
       </div>
     } @else {
-      <div class="cart-items">
-        @for (item of cart.items(); track item.productId + '-' + item.variantId) {
-          <article class="cart-item">
-            <a [routerLink]="['/products', item.slug]" [queryParams]="{ variant: item.variantId }"><img [src]="item.imageUrl || '/product-placeholder.svg'" [alt]="item.name + (item.variantSummary ? ', ' + item.variantSummary : '')" class="cart-image"></a>
-            <div class="cart-item-copy">
-              <h2><a [routerLink]="['/products', item.slug]" [queryParams]="{ variant: item.variantId }">{{ item.name }}</a></h2>
-              @if (item.variantSummary) { <p class="cart-configuration"><span>Selected configuration</span><strong>{{ item.variantSummary }}</strong></p> }
-              <p class="cart-sku">Variant: {{ item.variantId }}</p>
-              <p>{{ formatItemPrice(item) }} each</p>
-              <button type="button" class="remove-button" (click)="cart.remove(item.productId, item.variantId)">Remove</button>
-            </div>
-            <div class="quantity-control" aria-label="Quantity for {{ item.name }}">
-              <button type="button" (click)="cart.decrease(item.productId, item.variantId)" [disabled]="item.quantity === 1" aria-label="Decrease quantity">−</button>
-              <span>{{ item.quantity }}</span>
-              <button type="button" (click)="cart.increase(item.productId, item.variantId)" [disabled]="item.quantity === 99" aria-label="Increase quantity">+</button>
-            </div>
-            <p class="item-total">{{ formatItemPrice(item, true) }}</p>
-          </article>
-        }
+      <div class="bag-column">
+        <div class="cart-table-heading" aria-hidden="true">
+          <span>Your piece</span><span>Quantity</span><span>Total</span>
+        </div>
+        <div class="cart-items">
+          @for (item of cart.items(); track item.productId + '-' + item.variantId) {
+            <article class="cart-item">
+              <a class="cart-image-link" [routerLink]="['/products', item.slug]" [queryParams]="{ variant: item.variantId }">
+                <img [src]="item.imageUrl || '/product-placeholder.svg'"
+                  [alt]="item.name + (item.variantSummary ? ', ' + item.variantSummary : '')"
+                  class="cart-image" (error)="usePlaceholder($event)">
+              </a>
+              <div class="cart-item-copy">
+                <p class="item-kicker">Built by Grain</p>
+                <h2><a [routerLink]="['/products', item.slug]" [queryParams]="{ variant: item.variantId }">{{ item.name }}</a></h2>
+                @if (item.variantSummary) {
+                  <p class="cart-configuration"><span>Configuration</span>{{ item.variantSummary }}</p>
+                }
+                <p class="unit-price">{{ formatItemPrice(item) }} each</p>
+                <button type="button" class="remove-button" (click)="cart.remove(item.productId, item.variantId)">
+                  Remove
+                </button>
+              </div>
+              <div class="quantity-control" aria-label="Quantity for {{ item.name }}">
+                <button type="button" (click)="cart.decrease(item.productId, item.variantId)"
+                  [disabled]="item.quantity === 1" aria-label="Decrease quantity">−</button>
+                <output [attr.aria-label]="'Quantity: ' + item.quantity">{{ item.quantity }}</output>
+                <button type="button" (click)="cart.increase(item.productId, item.variantId)"
+                  [disabled]="item.quantity === 99" aria-label="Increase quantity">+</button>
+              </div>
+              <p class="item-total">{{ formatItemPrice(item, true) }}</p>
+            </article>
+          }
+        </div>
+        <div class="bag-actions">
+          <a routerLink="/" fragment="featured-products" class="continue-link"><span aria-hidden="true">←</span> Continue shopping</a>
+          <button type="button" class="clear-button" (click)="cart.clear()">Clear bag</button>
+        </div>
       </div>
+
       <aside class="cart-summary">
-        <div><span>Estimated subtotal</span><strong>{{ subtotal() }}</strong></div>
-        <p>Final prices and availability will be verified securely at checkout.</p>
-        <button type="button" disabled>Checkout coming soon</button>
-        <button type="button" class="secondary-button" (click)="cart.clear()">Clear bag</button>
+        <div class="summary-heading">
+          <p class="cart-eyebrow">Almost yours</p>
+          <h2>Order summary</h2>
+        </div>
+        <p class="delivery-message">
+          <span aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 6h11v11H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          </span>
+          Made-to-order pieces usually leave our workshop in 4–6 weeks.
+        </p>
+        <dl class="summary-lines">
+          <div><dt>Subtotal</dt><dd>{{ subtotal() }}</dd></div>
+          <div><dt>Delivery</dt><dd>Calculated next</dd></div>
+          <div class="summary-total"><dt>Estimated total</dt><dd>{{ subtotal() }}</dd></div>
+        </dl>
+        <p class="tax-note">VAT included where applicable.</p>
+        <a routerLink="/checkout/account" class="checkout-button">
+          Continue to checkout <span aria-hidden="true">→</span>
+        </a>
+        <p class="secure-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 20 6v5.5c0 5.1-3.4 8.5-8 10-4.6-1.5-8-4.9-8-10V6l8-3.5Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+          Secure, encrypted checkout
+        </p>
+        <div class="payment-methods" aria-label="Accepted payment methods">
+          <span>VISA</span><span>mastercard</span><span>PayPal</span><span>Apple Pay</span>
+        </div>
       </aside>
     }
+  </section>
+
+  <section class="cart-reassurance" aria-label="Shopping benefits">
+    <article>
+      <span aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 3 9.8 7.5 5 8.2l3.5 3.4-.8 4.8L12 14l4.3 2.4-.8-4.8L19 8.2l-4.8-.7L12 3Z"/><path d="M8 18v3l4-2 4 2v-3"/></svg>
+      </span>
+      <div><strong>Built to last</strong><p>Honest materials, enduring joinery.</p></div>
+    </article>
+    <article>
+      <span aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 19V8l8-5 8 5v11"/><path d="M8 19v-7h8v7M2 19h20"/></svg>
+      </span>
+      <div><strong>Workshop made</strong><p>Made with care by skilled hands.</p></div>
+    </article>
+    <article>
+      <span aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v5h5"/></svg>
+      </span>
+      <div><strong>30-day returns</strong><p>Time to make sure it feels right.</p></div>
+    </article>
+    <article>
+      <span aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v12H8l-4 4V5Z"/><path d="M8 9h8M8 13h5"/></svg>
+      </span>
+      <div><strong>Personal support</strong><p>Real help before and after delivery.</p></div>
+    </article>
   </section>
 </main>

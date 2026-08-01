@@ -179,42 +179,6 @@ export class AdminProductsComponent implements OnInit {
   protected archiveCurrent():void{const p=this.selectedProduct();if(!p||!confirm(`Archive ${p.name}?`))return;this.productService.deactivateProduct(p.id).subscribe({next:u=>this.handleProductChanged(u,'Product archived.')});}
   protected currentCategoryName():string{return this.selectedProduct()?.categoryName??this.categories().find(c=>c.id===this.productCategoryId())?.name??'';}
 
-  protected resetCatalog(): void {
-    const confirmation = globalThis.prompt(
-      'This permanently deletes every product, variant, size, color, and category. Uploaded files stay on disk.\n\nType RESET CATALOG to continue:'
-    );
-    if (confirmation !== 'RESET CATALOG') {
-      if (confirmation !== null) {
-        this.actionState.set('error');
-        this.message.set('Catalog reset cancelled: the confirmation text did not match.');
-      }
-      return;
-    }
-
-    this.actionState.set('saving');
-    this.message.set('Resetting catalog…');
-    this.catalog.resetCatalog(confirmation).subscribe({
-      next: result => {
-        this.products.set([]);
-        this.selectedProduct.set(null);
-        this.selectedNode.set(null);
-        this.selectedCategory.set(null);
-        this.categories.set([]);
-        this.selectedVariantId.set(null);
-        this.productCategoryId.set(null);
-        this.creatingCategory.set(false);
-        this.editorMode.set('empty');
-        this.productsState.set('ready');
-        this.actionState.set('success');
-        this.message.set(
-          `Catalog reset: ${result.productsDeleted} products, ${result.variantsDeleted} variants, and ${result.categoriesDeleted} categories deleted. Create a root category to begin again.`
-        );
-        this.tree?.reload();
-      },
-      error: error => this.handleAdminError(error, 'Catalog could not be reset.')
-    });
-  }
-
   public hasUnsavedChanges(): boolean {
     return this.productForm?.hasUnsavedChanges() ?? false;
   }

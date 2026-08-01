@@ -23,9 +23,24 @@ public class CatalogManagementService {
     @Transactional(readOnly=true)
     public List<OptionDto> options(long productId) {
         requireProduct(productId);
-        return jdbc.query("SELECT id, product_id, name, code, display_type, sort_order, required FROM product_options WHERE product_id=? ORDER BY sort_order,id",
-            (rs,n) -> new OptionDto(rs.getLong("id"), rs.getLong("product_id"), rs.getString("name"), rs.getString("code"),
-                rs.getString("display_type"), rs.getInt("sort_order"), rs.getBoolean("required"), values(rs.getLong("id"))), productId);
+        List<OptionRow> options = jdbc.query(
+            "SELECT id, product_id, name, code, display_type, sort_order, required FROM product_options WHERE product_id=? ORDER BY sort_order,id",
+            (rs,n) -> new OptionRow(rs.getLong("id"), rs.getLong("product_id"), rs.getString("name"), rs.getString("code"),
+                rs.getString("display_type"), rs.getInt("sort_order"), rs.getBoolean("required")), productId);
+        if (options.isEmpty()) return List.of();
+        Map<Long, List<OptionValueDto>> values = jdbc.query("""
+            SELECT option_id,id,label,code,swatch_hex,swatch_image_url,extra_label,sort_order,active
+            FROM product_option_values WHERE option_id IN (%s) ORDER BY option_id,sort_order,id
+            """.formatted(placeholders(options.size())), (rs, row) -> new OptionValueRow(
+                rs.getLong("option_id"), new OptionValueDto(rs.getLong("id"), rs.getString("label"),
+                    rs.getString("code"), rs.getString("swatch_hex"), rs.getString("swatch_image_url"),
+                    rs.getString("extra_label"), rs.getInt("sort_order"), rs.getBoolean("active"))),
+                options.stream().map(OptionRow::id).toArray()).stream()
+            .collect(Collectors.groupingBy(OptionValueRow::optionId, LinkedHashMap::new,
+                Collectors.mapping(OptionValueRow::value, Collectors.toList())));
+        return options.stream().map(option -> new OptionDto(option.id(), option.productId(), option.name(),
+            option.code(), option.displayType(), option.sortOrder(), option.required(),
+            List.copyOf(values.getOrDefault(option.id(), List.of())))).toList();
     }
     @Transactional
     public OptionDto createOption(long productId, OptionRequest r) {
@@ -83,7 +98,48 @@ public class CatalogManagementService {
     }
     @Transactional(readOnly=true)
     public List<VariantDto> variants(long productId) {
-        requireProduct(productId); return jdbc.query("SELECT * FROM product_variants WHERE product_id=? AND legacy_default=FALSE ORDER BY id",(rs,n)->variant(rs.getLong("id")),productId);
+        requireProduct(productId);
+        List<VariantRow> variants = jdbc.query("SELECT * FROM product_variants WHERE product_id=? AND legacy_default=FALSE ORDER BY id",
+            (rs,n) -> new VariantRow(rs.getLong("id"), rs.getString("public_id"), rs.getLong("product_id"),
+                rs.getString("sku"), rs.getLong("regular_price_cents"), (Long) rs.getObject("sale_price_cents"),
+                rs.getInt("stock_quantity"), rs.getString("availability_status"), rs.getBoolean("active"),
+                rs.getBoolean("allow_backorder"), rs.getString("delivery_estimate")), productId);
+        if (variants.isEmpty()) return List.of();
+        Map<Long, List<VariantOptionValue>> optionValues = jdbc.query("""
+            SELECT x.variant_id,o.id option_id,o.name option_name,v.id value_id,v.label
+            FROM product_variant_option_values x
+            JOIN product_variants variant ON variant.id=x.variant_id
+            JOIN product_option_values v ON v.id=x.option_value_id
+            JOIN product_options o ON o.id=v.option_id
+            WHERE variant.product_id=? AND variant.legacy_default=FALSE
+            ORDER BY x.variant_id,o.sort_order,o.id
+            """, (rs,n) -> new VariantOptionValueRow(rs.getLong("variant_id"),
+                new VariantOptionValue(rs.getLong("option_id"), rs.getString("option_name"),
+                    rs.getLong("value_id"), rs.getString("label"))), productId).stream()
+            .collect(Collectors.groupingBy(VariantOptionValueRow::variantId, LinkedHashMap::new,
+                Collectors.mapping(VariantOptionValueRow::value, Collectors.toList())));
+        List<VariantImageRow> imageRows = jdbc.query("""
+            SELECT x.variant_id,i.image_url,x.is_primary
+            FROM product_variant_images x
+            JOIN product_variants variant ON variant.id=x.variant_id
+            JOIN product_images i ON i.id=x.image_id
+            WHERE variant.product_id=? AND variant.legacy_default=FALSE
+            ORDER BY x.variant_id,x.is_primary DESC,x.sort_order,i.id
+            """, (rs,n) -> new VariantImageRow(rs.getLong("variant_id"), normalize(rs.getString("image_url")),
+                rs.getBoolean("is_primary")), productId);
+        Map<Long, List<String>> imageUrls = imageRows.stream().collect(Collectors.groupingBy(
+            VariantImageRow::variantId, LinkedHashMap::new,
+            Collectors.mapping(VariantImageRow::url, Collectors.toList())));
+        Map<Long, String> primaryImages = imageRows.stream().filter(VariantImageRow::primary)
+            .collect(Collectors.toMap(VariantImageRow::variantId, VariantImageRow::url, (first, ignored) -> first));
+        return variants.stream().map(row -> {
+            List<VariantOptionValue> values = List.copyOf(optionValues.getOrDefault(row.id(), List.of()));
+            List<String> images = List.copyOf(imageUrls.getOrDefault(row.id(), List.of()));
+            return new VariantDto(row.id(), row.publicId(), row.productId(), row.sku(),
+                values.stream().map(VariantOptionValue::label).collect(Collectors.joining(" · ")), values,
+                row.regularPriceCents(), row.salePriceCents(), row.stockQuantity(), row.availabilityStatus(),
+                row.active(), row.allowBackorder(), row.deliveryEstimate(), primaryImages.get(row.id()), images);
+        }).toList();
     }
     @Transactional(readOnly=true)
     public ProductConfiguration configuration(long productId) { return buildConfiguration(requireProduct(productId)); }
@@ -103,7 +159,7 @@ public class CatalogManagementService {
     }
     @Transactional
     public List<VariantDto> bulkUpdate(long productId,BulkVariantUpdateRequest r) {
-        r.variantIds().forEach(id->{ensureVariant(productId,id); if(r.regularPriceCents()!=null)jdbc.update("UPDATE product_variants SET regular_price_cents=? WHERE id=?",r.regularPriceCents(),id); if(r.priceDeltaCents()!=null)jdbc.update("UPDATE product_variants SET regular_price_cents=GREATEST(0,regular_price_cents+?) WHERE id=?",r.priceDeltaCents(),id);if(r.pricePercent()!=null){Long current=jdbc.queryForObject("SELECT regular_price_cents FROM product_variants WHERE id=?",Long.class,id);jdbc.update("UPDATE product_variants SET regular_price_cents=? WHERE id=?",Math.max(0,Math.round(current*(1+r.pricePercent()/100.0))),id);} if(r.salePriceCents()!=null)jdbc.update("UPDATE product_variants SET sale_price_cents=? WHERE id=?",r.salePriceCents(),id); if(r.stockQuantity()!=null)jdbc.update("UPDATE product_variants SET stock_quantity=? WHERE id=?",Math.max(0,r.stockQuantity()),id); if(r.addStock()!=null)jdbc.update("UPDATE product_variants SET stock_quantity=GREATEST(0,stock_quantity+?) WHERE id=?",r.addStock(),id); if(r.availabilityStatus()!=null)jdbc.update("UPDATE product_variants SET availability_status=? WHERE id=?",r.availabilityStatus(),id); if(r.active()!=null)jdbc.update("UPDATE product_variants SET active=? WHERE id=?",r.active(),id); if(r.allowBackorder()!=null)jdbc.update("UPDATE product_variants SET allow_backorder=? WHERE id=?",r.allowBackorder(),id); if(r.deliveryEstimate()!=null)jdbc.update("UPDATE product_variants SET delivery_estimate=? WHERE id=?",blank(r.deliveryEstimate()),id);}); syncProduct(productId); return variants(productId);
+        r.variantIds().forEach(id->{ensureVariant(productId,id); if(r.regularPriceCents()!=null)jdbc.update("UPDATE product_variants SET regular_price_cents=? WHERE id=?",r.regularPriceCents(),id); if(r.priceDeltaCents()!=null)jdbc.update("UPDATE product_variants SET regular_price_cents=GREATEST(0,regular_price_cents+?) WHERE id=?",r.priceDeltaCents(),id);if(r.pricePercent()!=null){Long current=jdbc.queryForObject("SELECT regular_price_cents FROM product_variants WHERE id=?",Long.class,id);jdbc.update("UPDATE product_variants SET regular_price_cents=? WHERE id=?",Math.max(0,Math.round(current*(1+r.pricePercent()/100.0))),id);} if(r.salePriceCents()!=null){Long regular=jdbc.queryForObject("SELECT regular_price_cents FROM product_variants WHERE id=?",Long.class,id);if(regular==null||r.salePriceCents()>regular)throw bad("Sale price must not exceed regular price.");jdbc.update("UPDATE product_variants SET sale_price_cents=? WHERE id=?",r.salePriceCents(),id);} if(r.stockQuantity()!=null)jdbc.update("UPDATE product_variants SET stock_quantity=? WHERE id=?",r.stockQuantity(),id); if(r.addStock()!=null)jdbc.update("UPDATE product_variants SET stock_quantity=GREATEST(0,stock_quantity+?) WHERE id=?",r.addStock(),id); if(r.availabilityStatus()!=null)jdbc.update("UPDATE product_variants SET availability_status=? WHERE id=?",r.availabilityStatus(),id); if(r.active()!=null)jdbc.update("UPDATE product_variants SET active=? WHERE id=?",r.active(),id); if(r.allowBackorder()!=null)jdbc.update("UPDATE product_variants SET allow_backorder=? WHERE id=?",r.allowBackorder(),id); if(r.deliveryEstimate()!=null)jdbc.update("UPDATE product_variants SET delivery_estimate=? WHERE id=?",blank(r.deliveryEstimate()),id);}); syncProduct(productId); return variants(productId);
     }
 
     @Transactional(readOnly=true)
@@ -174,4 +230,13 @@ public class CatalogManagementService {
     private String normalize(String u){return u!=null&&u.startsWith("/uploads/")?"/api/public"+u:u;}
     private ResponseStatusException bad(String m){return new ResponseStatusException(HttpStatus.BAD_REQUEST,m);}
     private ResponseStatusException conflict(String m){return new ResponseStatusException(HttpStatus.CONFLICT,m);}
+
+    private record OptionRow(long id, long productId, String name, String code, String displayType,
+        int sortOrder, boolean required) {}
+    private record OptionValueRow(long optionId, OptionValueDto value) {}
+    private record VariantRow(long id, String publicId, long productId, String sku, long regularPriceCents,
+        Long salePriceCents, int stockQuantity, String availabilityStatus, boolean active,
+        boolean allowBackorder, String deliveryEstimate) {}
+    private record VariantOptionValueRow(long variantId, VariantOptionValue value) {}
+    private record VariantImageRow(long variantId, String url, boolean primary) {}
 }

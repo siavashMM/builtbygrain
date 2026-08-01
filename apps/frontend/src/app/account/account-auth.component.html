@@ -1,0 +1,127 @@
+<app-shop-navigation />
+<main id="main-content" class="account-auth-page" tabindex="-1">
+  <section class="auth-story" aria-hidden="true">
+    <span class="auth-kicker">Made to last</span>
+    <h1>Your pieces,<br>your place.</h1>
+    <p>Keep your details and delivery addresses together for a smoother Built by Grain experience.</p>
+  </section>
+
+  <section class="auth-card" [attr.aria-labelledby]="'auth-title-' + mode">
+    <a routerLink="/" class="auth-brand">
+      <img src="/builtbygrain-mark.png" alt="">
+      <span>Built by Grain</span>
+    </a>
+
+    @if (mode === 'sign-in') {
+      <p class="eyebrow">Welcome back</p>
+      <h1 id="auth-title-sign-in">Sign in to your account</h1>
+      <p class="auth-intro">See your saved details and continue where you left off.</p>
+      <form [formGroup]="signInForm" (ngSubmit)="submit()" novalidate>
+        <label>Email address
+          <input type="email" formControlName="email" autocomplete="email"
+            [attr.aria-invalid]="signInForm.controls.email.invalid && signInForm.controls.email.touched">
+          @if (signInForm.controls.email.invalid && signInForm.controls.email.touched) {
+            <small class="field-error">Enter a valid email address.</small>
+          }
+        </label>
+        <label>Password
+          <input type="password" formControlName="password" autocomplete="current-password"
+            [attr.aria-invalid]="signInForm.controls.password.invalid && signInForm.controls.password.touched">
+          @if (signInForm.controls.password.invalid && signInForm.controls.password.touched) {
+            <small class="field-error">Enter your password.</small>
+          }
+        </label>
+        <a class="form-link" routerLink="/account/forgot-password">Forgot password?</a>
+        @if (errorMessage()) { <p class="account-message error" role="alert">{{ errorMessage() }}</p> }
+        @if (successMessage()) { <p class="account-message success" role="status">{{ successMessage() }}</p> }
+        <button class="account-primary" type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Signing in…' : 'Sign in' }}
+        </button>
+      </form>
+      <p class="auth-switch">New here? <a routerLink="/account/register" [queryParams]="{ returnUrl: returnUrl() }">Create an account</a></p>
+    }
+
+    @if (mode === 'register') {
+      <p class="eyebrow">Join us</p>
+      <h1 id="auth-title-register">Create your account</h1>
+      <p class="auth-intro">Save delivery details and prepare for a faster checkout.</p>
+      <form [formGroup]="registerForm" (ngSubmit)="submit()" novalidate>
+        <div class="form-row">
+          <label>First name
+            <input formControlName="firstName" autocomplete="given-name"
+              [attr.aria-invalid]="registerForm.controls.firstName.invalid && registerForm.controls.firstName.touched">
+            @if (registerForm.controls.firstName.invalid && registerForm.controls.firstName.touched) {
+              <small class="field-error">First name is required.</small>
+            }
+          </label>
+          <label>Last name
+            <input formControlName="lastName" autocomplete="family-name"
+              [attr.aria-invalid]="registerForm.controls.lastName.invalid && registerForm.controls.lastName.touched">
+            @if (registerForm.controls.lastName.invalid && registerForm.controls.lastName.touched) {
+              <small class="field-error">Last name is required.</small>
+            }
+          </label>
+        </div>
+        <label>Email address
+          <input type="email" formControlName="email" autocomplete="email"
+            [attr.aria-invalid]="registerForm.controls.email.invalid && registerForm.controls.email.touched">
+          @if (registerForm.controls.email.invalid && registerForm.controls.email.touched) {
+            <small class="field-error">Enter a valid email address.</small>
+          }
+        </label>
+        <label>Password
+          <input type="password" formControlName="password" autocomplete="new-password"
+            [attr.aria-invalid]="registerForm.controls.password.invalid && registerForm.controls.password.touched">
+          <small>Use at least 12 characters.</small>
+        </label>
+        <label>Confirm password
+          <input type="password" formControlName="confirmPassword" autocomplete="new-password">
+        </label>
+        @if (errorMessage()) { <p class="account-message error" role="alert">{{ errorMessage() }}</p> }
+        <button class="account-primary" type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Creating account…' : 'Create account' }}
+        </button>
+      </form>
+      <p class="auth-switch">Already have an account? <a routerLink="/account/sign-in" [queryParams]="{ returnUrl: returnUrl() }">Sign in</a></p>
+    }
+
+    @if (mode === 'forgot-password') {
+      <p class="eyebrow">Account recovery</p>
+      <h1 id="auth-title-forgot-password">Reset your password</h1>
+      <p class="auth-intro">Enter your email and we’ll send a secure, time-limited link.</p>
+      <form [formGroup]="emailForm" (ngSubmit)="submit()" novalidate>
+        <label>Email address
+          <input type="email" formControlName="email" autocomplete="email"
+            [attr.aria-invalid]="emailForm.controls.email.invalid && emailForm.controls.email.touched">
+        </label>
+        @if (errorMessage()) { <p class="account-message error" role="alert">{{ errorMessage() }}</p> }
+        @if (successMessage()) { <p class="account-message success" role="status">{{ successMessage() }}</p> }
+        <button class="account-primary" type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Sending…' : 'Send reset link' }}
+        </button>
+      </form>
+      <p class="auth-switch"><a routerLink="/account/sign-in">Back to sign in</a></p>
+    }
+
+    @if (mode === 'reset-password') {
+      <p class="eyebrow">Choose a new password</p>
+      <h1 id="auth-title-reset-password">Secure your account</h1>
+      <p class="auth-intro">This link works once and expires after 30 minutes.</p>
+      <form [formGroup]="resetForm" (ngSubmit)="submit()" novalidate>
+        <label>New password
+          <input type="password" formControlName="newPassword" autocomplete="new-password">
+          <small>Use at least 12 characters.</small>
+        </label>
+        <label>Confirm new password
+          <input type="password" formControlName="confirmPassword" autocomplete="new-password">
+        </label>
+        @if (errorMessage()) { <p class="account-message error" role="alert">{{ errorMessage() }}</p> }
+        @if (successMessage()) { <p class="account-message success" role="status">{{ successMessage() }}</p> }
+        <button class="account-primary" type="submit" [disabled]="submitting() || !!successMessage()">
+          {{ submitting() ? 'Saving…' : 'Save new password' }}
+        </button>
+      </form>
+      @if (successMessage()) { <p class="auth-switch"><a routerLink="/account/sign-in">Continue to sign in</a></p> }
+    }
+  </section>
+</main>

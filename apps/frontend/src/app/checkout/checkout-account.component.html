@@ -1,0 +1,101 @@
+<main id="main-content" class="checkout-page" tabindex="-1">
+  <app-shop-navigation />
+  <app-checkout-stepper [currentStep]="2" />
+
+  <section class="checkout-heading">
+    <div><p class="checkout-eyebrow">A smoother way through</p><h1>How would you like to continue?</h1></div>
+    <p>Create an account to save your details, sign in if you already have one, or continue without an account.</p>
+  </section>
+
+  <div class="checkout-layout">
+    <section class="checkout-main-card" aria-labelledby="account-step-title">
+      @if (loading()) {
+        <p class="checkout-loading" role="status">Checking your account…</p>
+      } @else if (customer(); as currentCustomer) {
+        <div class="checkout-welcome">
+          <span class="welcome-mark" aria-hidden="true">✓</span>
+          <p class="checkout-eyebrow">Welcome back</p>
+          <h2 id="account-step-title">{{ currentCustomer.firstName }}, you’re signed in.</h2>
+          <p>We’ll use your saved details and show your address book in the next step.</p>
+          <button type="button" class="checkout-primary" (click)="continueSignedIn()">Continue to delivery <span aria-hidden="true">→</span></button>
+          <a routerLink="/account">Review account details</a>
+        </div>
+      } @else {
+        <div class="social-onboarding">
+          <p class="checkout-eyebrow">Fastest</p>
+          <h2 id="account-step-title">Continue with one click</h2>
+          <div class="social-buttons">
+            @if (config()?.socialProviders?.google) {
+              <a class="social-button" [href]="socialUrl('google')">
+                <span class="google-mark" aria-hidden="true">G</span>Continue with Google
+              </a>
+            } @else {
+              <button type="button" class="social-button unavailable" disabled
+                title="Add Google OAuth credentials to enable this option">
+                <span class="google-mark" aria-hidden="true">G</span>Continue with Google
+              </button>
+            }
+            @if (config()?.socialProviders?.apple) {
+              <a class="social-button apple-button" [href]="socialUrl('apple')">
+                <span aria-hidden="true">●</span>Continue with Apple
+              </a>
+            } @else {
+              <button type="button" class="social-button apple-button unavailable" disabled
+                title="Add Apple Sign in credentials to enable this option">
+                <span aria-hidden="true">●</span>Continue with Apple
+              </button>
+            }
+          </div>
+          @if (!config()?.socialProviders?.google || !config()?.socialProviders?.apple) {
+            <p class="integration-note">Social sign-in becomes available when its developer credentials are configured. Email registration below works now.</p>
+          }
+        </div>
+
+        <div class="checkout-divider"><span>or use email</span></div>
+
+        <div class="account-mode-tabs" role="tablist" aria-label="Account options">
+          <button type="button" role="tab" [attr.aria-selected]="mode() === 'create'" [class.active]="mode() === 'create'"
+            (click)="selectMode('create')">Create account</button>
+          <button type="button" role="tab" [attr.aria-selected]="mode() === 'sign-in'" [class.active]="mode() === 'sign-in'"
+            (click)="selectMode('sign-in')">Sign in</button>
+        </div>
+
+        @if (mode() === 'create') {
+          <form class="checkout-form" [formGroup]="registerForm" (ngSubmit)="register()" novalidate>
+            <div class="form-intro"><h2>Create your account</h2><p>Your bag stays exactly as it is.</p></div>
+            <div class="checkout-form-row">
+              <label>First name<input formControlName="firstName" autocomplete="given-name"></label>
+              <label>Last name<input formControlName="lastName" autocomplete="family-name"></label>
+            </div>
+            <label>Email address<input type="email" formControlName="email" autocomplete="email"></label>
+            <label>Password<input type="password" formControlName="password" autocomplete="new-password"><small>Use at least 12 characters.</small></label>
+            <label>Confirm password<input type="password" formControlName="confirmPassword" autocomplete="new-password"></label>
+            @if (errorMessage()) { <p class="checkout-message error" role="alert">{{ errorMessage() }}</p> }
+            <button type="submit" class="checkout-primary" [disabled]="submitting()">
+              {{ submitting() ? 'Creating your account…' : 'Create account and continue' }} <span aria-hidden="true">→</span>
+            </button>
+            <p class="privacy-note">By creating an account, you agree to our terms and acknowledge our privacy notice.</p>
+          </form>
+        } @else {
+          <form class="checkout-form" [formGroup]="loginForm" (ngSubmit)="signIn()" novalidate>
+            <div class="form-intro"><h2>Welcome back</h2><p>Sign in to use your saved details.</p></div>
+            <label>Email address<input type="email" formControlName="email" autocomplete="email"></label>
+            <label>Password<input type="password" formControlName="password" autocomplete="current-password"></label>
+            <a class="forgot-link" routerLink="/account/forgot-password">Forgot password?</a>
+            @if (errorMessage()) { <p class="checkout-message error" role="alert">{{ errorMessage() }}</p> }
+            <button type="submit" class="checkout-primary" [disabled]="submitting()">
+              {{ submitting() ? 'Signing in…' : 'Sign in and continue' }} <span aria-hidden="true">→</span>
+            </button>
+          </form>
+        }
+
+        <div class="guest-checkout">
+          <div><p class="checkout-eyebrow">No account needed</p><h2>Checkout as a guest</h2><p>Enter only the delivery details needed for this order.</p></div>
+          <button type="button" class="checkout-secondary" (click)="continueAsGuest()">Continue as guest</button>
+        </div>
+      }
+    </section>
+
+    <app-checkout-summary />
+  </div>
+</main>

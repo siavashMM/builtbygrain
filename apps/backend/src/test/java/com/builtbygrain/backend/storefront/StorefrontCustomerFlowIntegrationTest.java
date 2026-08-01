@@ -3,7 +3,8 @@ package com.builtbygrain.backend.storefront;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -12,18 +13,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import com.builtbygrain.backend.product.TestImages;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -53,8 +55,8 @@ class StorefrontCustomerFlowIntegrationTest {
         long livingProduct = createProduct(living, "Flow Living Shelf", "flow-living-shelf", 7900);
 
         JsonNode hero = json(mockMvc.perform(multipart("/api/admin/storefront/settings/hero-image")
-                .file(new MockMultipartFile("image", "flow-hero.png", MediaType.IMAGE_PNG_VALUE, "valid-image".getBytes()))
-                .param("altText", "Oak desk in a bright workspace").with(httpBasic("admin", "admin")))
+                .file(new MockMultipartFile("image", "flow-hero.png", MediaType.IMAGE_PNG_VALUE, TestImages.png()))
+                .param("altText", "Oak desk in a bright workspace").with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         uploadedHero = hero.get("heroImageUrl").asText();
 
@@ -87,13 +89,13 @@ class StorefrontCustomerFlowIntegrationTest {
         // A second direct request exercises the same path used by a hard refresh.
         assertCategoryProducts("flow-office/flow-desks", "flow-standing-desk", "flow-writing-desk");
 
-        mockMvc.perform(patch("/api/admin/categories/{id}/status", desks).with(httpBasic("admin", "admin"))
+        mockMvc.perform(patch("/api/admin/categories/{id}/status", desks).with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"active\":false}"))
             .andExpect(status().isOk());
-        mockMvc.perform(patch("/api/admin/products/{id}/deactivate", standingProduct).with(httpBasic("admin", "admin")))
+        mockMvc.perform(patch("/api/admin/products/{id}/deactivate", standingProduct).with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk());
         mockMvc.perform(patch("/api/admin/storefront/navigation-groups/{id}/deactivate", livingGroup)
-                .with(httpBasic("admin", "admin")))
+                .with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/public/storefront"))
@@ -115,7 +117,7 @@ class StorefrontCustomerFlowIntegrationTest {
         String body = parentId == null ? "{\"name\":\"%s\",\"parentId\":null}".formatted(name)
             : "{\"name\":\"%s\",\"parentId\":%d}".formatted(name, parentId);
         return json(mockMvc.perform(post("/api/admin/categories").queryParam("simple", "true")
-                .with(httpBasic("admin", "admin")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .with(user("admin").roles("ADMIN")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong();
     }
 
@@ -125,31 +127,31 @@ class StorefrontCustomerFlowIntegrationTest {
              "inStock":true,"sizes":[],"active":true}
             """.formatted(name, slug, price);
         return json(mockMvc.perform(post("/api/admin/categories/{id}/products", categoryId)
-                .with(httpBasic("admin", "admin")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .with(user("admin").roles("ADMIN")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong();
     }
 
     private long createGroup(String label, boolean active) throws Exception {
-        return json(mockMvc.perform(post("/api/admin/storefront/navigation-groups").with(httpBasic("admin", "admin"))
+        return json(mockMvc.perform(post("/api/admin/storefront/navigation-groups").with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"label\":\"%s\",\"active\":%s}".formatted(label, active)))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong();
     }
 
     private void assign(long groupId, String resource, long id) throws Exception {
         mockMvc.perform(post("/api/admin/storefront/navigation-groups/{groupId}/" + resource, groupId)
-                .with(httpBasic("admin", "admin")).contentType(MediaType.APPLICATION_JSON).content("{\"id\":" + id + "}"))
+                .with(user("admin").roles("ADMIN")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"id\":" + id + "}"))
             .andExpect(status().isOk());
     }
 
     private void reorder(long groupId, String resource, long... ids) throws Exception {
         mockMvc.perform(put("/api/admin/storefront/navigation-groups/{groupId}/" + resource + "/reorder", groupId)
-                .with(httpBasic("admin", "admin")).contentType(MediaType.APPLICATION_JSON)
+                .with(user("admin").roles("ADMIN")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"ids\":" + mapper.writeValueAsString(ids) + "}"))
             .andExpect(status().isOk());
     }
 
     private void reorderGroups(long... ids) throws Exception {
-        mockMvc.perform(put("/api/admin/storefront/navigation-groups/reorder").with(httpBasic("admin", "admin"))
+        mockMvc.perform(put("/api/admin/storefront/navigation-groups/reorder").with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"ids\":" + mapper.writeValueAsString(ids) + "}"))
             .andExpect(status().isOk());
     }

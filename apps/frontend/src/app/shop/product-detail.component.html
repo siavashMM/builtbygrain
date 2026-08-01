@@ -1,4 +1,4 @@
-<main class="product-page">
+<main id="main-content" class="product-page" tabindex="-1">
   <app-shop-navigation />
   @if (state() === 'loading') { <section class="product-state" aria-live="polite"><mat-spinner diameter="34"/><p>Preparing the product…</p></section> }
   @else if (state() === 'not-found') { <section class="product-state"><p class="eyebrow">Nothing here</p><h1>Product not found</h1><p>This piece is no longer available.</p><a mat-flat-button routerLink="/">Return to the collection</a></section> }

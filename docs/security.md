@@ -1,67 +1,38 @@
 # Security
 
-This document captures the first security foundation for Built by Grain.
+## Access and admin sessions
 
-## Access Rules
+- Health and `/api/public/**` endpoints are public.
+- `/api/admin/**` requires a PostgreSQL-backed `ADMIN` session, except the CSRF and login endpoints.
+- There is no fallback customer identity or placeholder `USER` surface.
 
-- `GET /api/health` is public.
-- Public shop endpoints live under `/api/public/**`.
-- User endpoints live under `/api/user/**` and require `USER` or `ADMIN`.
-- Admin endpoints live under `/api/admin/**` and require `ADMIN`.
-
-The current backend uses HTTP Basic with temporary in-memory users:
-
-- `user` / `password` with role `USER`
-- Admin users with role `ADMIN`, loaded from PostgreSQL
-
-Configure the first admin account by setting environment variables before starting the backend:
+Bootstrap a missing admin account with environment-only credentials:
 
 ```bash
 export ADMIN_USERNAME=admin@example.com
 export ADMIN_PASSWORD='use-a-long-random-password'
 ```
 
-These values bootstrap a missing username into `admin_accounts`; passwords are
-stored as hashes and subsequent authentication is database-backed.
+Passwords are adaptive Spring Security hashes in `admin_accounts`. Admin login creates a 30-minute server-side
+JDBC session. The `BBG_ADMIN_SESSION` cookie is `HttpOnly`
+and `SameSite=Lax`; the `prod` profile forces it to `Secure`. The frontend stores no credential or authentication
+token in web storage.
 
-No production admin password is hardcoded in application code. Replace the temporary in-memory setup with database-backed users before adding customer accounts or production SSO.
+Authenticated administrators change their password in **Settings**. `POST /api/admin/auth/password`
+requires the current password, accepts a new password of at least 12 characters, updates the
+stored BCrypt hash, and invalidates every active session for that administrator.
 
-## CORS Is Not Authentication
+All mutating requests use the `XSRF-TOKEN` cookie and `X-XSRF-TOKEN` header. Fetch `/api/admin/auth/csrf` before login and after login/logout. Authentication failures are generic. PostgreSQL-backed throttling blocks five failures per known account/IP or twenty per IP within 15 minutes for 15 minutes.
 
-CORS controls which browser origins are allowed to call the API from frontend JavaScript.
-It does not prove who the user is and it does not protect private data by itself.
+Production is same-origin. `CORS_ALLOWED_ORIGINS` accepts a comma-separated set of exact development origins and defaults to `http://localhost:4200`; wildcard credentialed CORS is not enabled.
 
-The backend still enforces authentication and roles for `/api/user/**` and `/api/admin/**`.
+## Product images
 
-For local development, the backend allows requests from `http://localhost:4200`.
+Uploads are stored in a private S3-compatible bucket and are served only through `/api/public/uploads/{products|storefront}/{uuid}.{jpg|png|webp|gif}`. Configure the S3 endpoint, region, bucket, credentials, and path-style mode with the `OBJECT_STORAGE_*` variables shown in `.env.example`.
 
-## Product Prices
+The backend validates JPEG, PNG, GIF, and WebP byte signatures, verifies any declared media type, enforces the 5 MB limit on actual bytes, and generates object keys. Newly stored objects are deleted after database rollback; replacements and deletions are removed only after commit. Public proxy responses use strict key validation, immutable cache headers, ETag/Last-Modified, GET/HEAD, and byte ranges.
 
-The backend must never trust product prices sent from the frontend.
+## General safeguards
 
-When checkout is implemented, the frontend may send product IDs, quantities, or selected options.
-The backend must load trusted prices from its own catalog data before creating payment sessions or orders.
-
-## Stripe Checkout And Card Data
-
-Stripe Checkout will handle card and banking details later.
-
-Banking and card data must never touch the Built by Grain backend. The backend should create Stripe Checkout sessions and let Stripe collect sensitive payment data directly.
-
-## Admin Protection
-
-Admin login and product management operations are implemented under `/api/admin/**` and require the `ADMIN` role.
-
-Current admin endpoints include login verification, list, create, update, activate, deactivate, delete, and product image upload.
-
-Public product browsing should stay under `/api/public/**` so customers can view products without signing in.
-
-The public Angular shop does not link to admin pages. Admin pages are separate routes under `/admin/login` and `/admin/products`, protected by an Angular guard and backed by Spring Security authorization.
-
-Public endpoints only return products where `active` is `true`. Admins can also mark `inStock` separately to show availability without hiding a product.
-
-## Product Image Uploads
-
-Admin image uploads are stored on the backend filesystem under `UPLOADS_ROOT`, which defaults to `uploads`.
-
-The API stores the resulting URL path, such as `/uploads/products/{filename}`, on the product record. Uploaded files are validated by content type and file size. The default maximum size is 5 MB and can be changed with `PRODUCT_IMAGE_MAX_FILE_SIZE_BYTES`.
+The backend is authoritative for prices. A future checkout must reload catalog data rather than trusting browser
+values.

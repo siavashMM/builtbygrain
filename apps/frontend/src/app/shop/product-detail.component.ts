@@ -1,6 +1,6 @@
 import { DOCUMENT, KeyValuePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, ViewEncapsulation, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -23,7 +23,13 @@ import { ProductCardComponent } from './product-card.component';
 
 type DetailState = 'loading' | 'ready' | 'not-found' | 'error';
 
-@Component({ selector: 'app-product-detail', imports: [RouterLink, ShopNavigationComponent, ProductGalleryComponent, ProductCardComponent, KeyValuePipe, MatButtonModule, MatCardModule, MatChipsModule, MatDividerModule, MatExpansionModule, MatProgressSpinnerModule, MatSelectModule, MatSnackBarModule, MatTooltipModule], templateUrl: './product-detail.component.html' })
+@Component({
+  selector: 'app-product-detail',
+  imports: [RouterLink, ShopNavigationComponent, ProductGalleryComponent, ProductCardComponent, KeyValuePipe, MatButtonModule, MatCardModule, MatChipsModule, MatDividerModule, MatExpansionModule, MatProgressSpinnerModule, MatSelectModule, MatSnackBarModule, MatTooltipModule],
+  templateUrl: './product-detail.component.html',
+  styleUrl: '../../../node_modules/@angular/material/prebuilt-themes/azure-blue.css',
+  encapsulation: ViewEncapsulation.None
+})
 export class ProductDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute); private readonly router = inject(Router);
   private readonly productService = inject(ProductService); private readonly cart = inject(CartService);

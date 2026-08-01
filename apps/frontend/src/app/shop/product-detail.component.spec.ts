@@ -37,6 +37,7 @@ describe('ProductDetailComponent routing', () => {
     fixture = TestBed.createComponent(ProductDetailTestApp);
     fixture.detectChanges();
 
+    http.expectOne('/api/account/auth/session').flush({}, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/api/public/storefront').flush({ settings: {}, navigationGroups: [] });
     http.expectOne('/api/public/categories').flush([]);
     http.expectOne('/api/public/products/oak-desk').flush(product(1, 'Oak desk', 'oak-desk'));
@@ -52,7 +53,7 @@ describe('ProductDetailComponent routing', () => {
     expect(fixture.debugElement.query(By.directive(ProductDetailComponent)).componentInstance).toBe(firstInstance);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Preparing the product');
     http.expectOne('/api/public/products/walnut-shelf').flush(product(2, 'Walnut shelf', 'walnut-shelf'));
-    http.expectOne('/api/public/products').flush([]);
+    http.expectNone('/api/public/products');
     fixture.detectChanges();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.purchase-heading h1')?.textContent).toContain('Walnut shelf');

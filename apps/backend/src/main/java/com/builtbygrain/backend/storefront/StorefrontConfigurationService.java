@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,24 +78,9 @@ public class StorefrontConfigurationService {
         if (alt.length() > 300) throw badRequest("Hero image alt text must be at most 300 characters.");
 
         String newUrl = images.store(image);
-        String oldUrl;
-        try {
-            oldUrl = replaceHeroImageRecord(newUrl, alt);
-        } catch (RuntimeException exception) {
-            images.delete(newUrl);
-            throw exception;
-        }
+        String oldUrl = replaceHeroImageRecord(newUrl, alt);
         if (oldUrl != null && !oldUrl.equals(newUrl)) {
-            try {
-                images.delete(oldUrl);
-            } catch (RuntimeException exception) {
-                try {
-                    images.delete(newUrl);
-                } catch (RuntimeException cleanupFailure) {
-                    exception.addSuppressed(cleanupFailure);
-                }
-                throw exception;
-            }
+            images.delete(oldUrl);
         }
         return settings();
     }
@@ -110,7 +96,14 @@ public class StorefrontConfigurationService {
 
     @Transactional(readOnly = true)
     public List<NavigationGroupDto> groups() {
-        return groupRows(false).stream().map(this::adminGroup).toList();
+        List<GroupRow> rows = groupRows(false);
+        Map<Long, List<Category>> assignedCategories = assignedCategoriesByGroup(rows);
+        Map<Long, List<Product>> assignedProducts = assignedProductsByGroup(rows);
+        return rows.stream().map(row -> adminGroup(
+            row,
+            assignedCategories.getOrDefault(row.id(), List.of()),
+            assignedProducts.getOrDefault(row.id(), List.of())
+        )).toList();
     }
 
     @Transactional
@@ -241,15 +234,21 @@ public class StorefrontConfigurationService {
 
     @Transactional(readOnly = true)
     public PublicStorefrontDto publicStorefront() {
-        Map<Long, ProductCardDto> cards = productCards.activeCards().stream()
+        List<GroupRow> rows = groupRows(true);
+        Map<Long, List<Category>> categoriesByGroup = assignedCategoriesByGroup(rows);
+        Map<Long, List<Long>> productIdsByGroup = assignedProductIdsByGroup(rows);
+        Set<Long> assignedProductIds = productIdsByGroup.values().stream()
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
+        Map<Long, ProductCardDto> cards = productCards.activeCardsForIds(assignedProductIds).stream()
             .collect(Collectors.toMap(ProductCardDto::id, Function.identity()));
-        List<PublicNavigationGroupDto> publicGroups = groupRows(true).stream().map(row -> {
-            List<PublicCategoryDto> publicCategories = assignedCategories(row.id()).stream()
+        List<PublicNavigationGroupDto> publicGroups = rows.stream().map(row -> {
+            List<PublicCategoryDto> publicCategories = categoriesByGroup.getOrDefault(row.id(), List.of()).stream()
                 .filter(this::hasActiveAncestry)
                 .map(category -> new PublicCategoryDto(category.getId(), category.getName(), category.getSlug(),
                     category.getDescription(), "/category/" + category.path()))
                 .toList();
-            List<ProductCardDto> featured = assignedProductIds(row.id()).stream().map(cards::get)
+            List<ProductCardDto> featured = productIdsByGroup.getOrDefault(row.id(), List.of()).stream().map(cards::get)
                 .filter(java.util.Objects::nonNull).toList();
             return new PublicNavigationGroupDto(row.id(), row.label(), row.displayOrder(), publicCategories, featured);
         }).toList();
@@ -259,12 +258,12 @@ public class StorefrontConfigurationService {
     private NavigationGroupDto group(long id) {
         GroupRow row = groupRows(false).stream().filter(item -> item.id() == id).findFirst()
             .orElseThrow(() -> notFound("Navigation group not found."));
-        return adminGroup(row);
+        return adminGroup(row, assignedCategories(row.id()), assignedProducts(row.id()));
     }
 
-    private NavigationGroupDto adminGroup(GroupRow row) {
-        List<CategoryResponse> categoryDtos = assignedCategories(row.id()).stream().map(CategoryResponse::from).toList();
-        List<ProductReferenceDto> productDtos = assignedProducts(row.id()).stream()
+    private NavigationGroupDto adminGroup(GroupRow row, List<Category> assignedCategories, List<Product> assignedProducts) {
+        List<CategoryResponse> categoryDtos = assignedCategories.stream().map(CategoryResponse::from).toList();
+        List<ProductReferenceDto> productDtos = assignedProducts.stream()
             .map(product -> new ProductReferenceDto(product.getId(), product.getName(), product.getSlug(),
                 product.isActive(), product.getStatus().name())).toList();
         return new NavigationGroupDto(row.id(), row.label(), row.active(), row.displayOrder(), categoryDtos, productDtos);
@@ -286,6 +285,50 @@ public class StorefrontConfigurationService {
         List<Long> ids = assignedProductIds(groupId);
         Map<Long, Product> values = products.findAllById(ids).stream().collect(Collectors.toMap(Product::getId, Function.identity()));
         return ids.stream().map(values::get).filter(java.util.Objects::nonNull).toList();
+    }
+
+    private Map<Long, List<Category>> assignedCategoriesByGroup(List<GroupRow> groups) {
+        Map<Long, List<Long>> idsByGroup = assignedIdsByGroup("navigation_group_categories", "category_id", groups);
+        Set<Long> assignedIds = idsByGroup.values().stream().flatMap(List::stream).collect(Collectors.toSet());
+        if (assignedIds.isEmpty()) return Map.of();
+        // Loading the whole category tree keeps lazy parent references in the persistence context,
+        // so paths and active ancestry do not issue one query per ancestor.
+        Map<Long, Category> values = categories.findAll().stream()
+            .collect(Collectors.toMap(Category::getId, Function.identity()));
+        return mapAssignments(idsByGroup, values);
+    }
+
+    private Map<Long, List<Product>> assignedProductsByGroup(List<GroupRow> groups) {
+        Map<Long, List<Long>> idsByGroup = assignedProductIdsByGroup(groups);
+        Set<Long> assignedIds = idsByGroup.values().stream().flatMap(List::stream).collect(Collectors.toSet());
+        if (assignedIds.isEmpty()) return Map.of();
+        Map<Long, Product> values = products.findAllById(assignedIds).stream()
+            .collect(Collectors.toMap(Product::getId, Function.identity()));
+        return mapAssignments(idsByGroup, values);
+    }
+
+    private Map<Long, List<Long>> assignedProductIdsByGroup(List<GroupRow> groups) {
+        return assignedIdsByGroup("navigation_group_featured_products", "product_id", groups);
+    }
+
+    private Map<Long, List<Long>> assignedIdsByGroup(String table, String idColumn, List<GroupRow> groups) {
+        if (groups.isEmpty()) return Map.of();
+        Map<Long, List<Long>> result = new LinkedHashMap<>();
+        jdbc.query("SELECT navigation_group_id, " + idColumn + " FROM " + table
+                + " WHERE navigation_group_id IN (" + placeholders(groups.size()) + ")"
+                + " ORDER BY navigation_group_id, display_order, " + idColumn,
+            (RowCallbackHandler) rs -> result.computeIfAbsent(rs.getLong("navigation_group_id"), ignored -> new ArrayList<>())
+                .add(rs.getLong(idColumn)),
+            groups.stream().map(GroupRow::id).toArray());
+        result.replaceAll((ignored, ids) -> List.copyOf(ids));
+        return Map.copyOf(result);
+    }
+
+    private static <T> Map<Long, List<T>> mapAssignments(Map<Long, List<Long>> assignments, Map<Long, T> values) {
+        Map<Long, List<T>> result = new LinkedHashMap<>();
+        assignments.forEach((groupId, ids) -> result.put(groupId,
+            ids.stream().map(values::get).filter(java.util.Objects::nonNull).toList()));
+        return Map.copyOf(result);
     }
 
     private List<Long> assignedProductIds(long groupId) {
@@ -362,6 +405,10 @@ public class StorefrontConfigurationService {
 
     private static String clean(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String placeholders(int count) {
+        return String.join(",", java.util.Collections.nCopies(count, "?"));
     }
 
     private static StorefrontApiException badRequest(String message) { return new StorefrontApiException(HttpStatus.BAD_REQUEST, message); }

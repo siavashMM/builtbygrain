@@ -1,0 +1,86 @@
+<main id="main-content" class="checkout-page" tabindex="-1">
+  <app-shop-navigation />
+  <app-checkout-stepper [currentStep]="3" />
+
+  <section class="checkout-heading">
+    <div><p class="checkout-eyebrow">Where it’s going</p><h1>Choose a delivery address</h1></div>
+    <p>Select a saved address or add a new one. Address suggestions are optional—every field remains available for manual entry.</p>
+  </section>
+
+  <div class="checkout-layout">
+    <section class="checkout-main-card delivery-card" aria-labelledby="delivery-title">
+      @if (loading()) {
+        <p class="checkout-loading" role="status">Loading delivery details…</p>
+      } @else {
+        <div class="delivery-card-heading"><p class="checkout-eyebrow">Step 3</p><h2 id="delivery-title">Delivery details</h2></div>
+
+        @if (addresses().length > 0) {
+          <fieldset class="saved-addresses">
+            <legend>Saved addresses</legend>
+            @for (address of addresses(); track address.id) {
+              <label class="saved-address" [class.selected]="selectedAddressId() === address.id">
+                <input type="radio" name="delivery-address" [checked]="selectedAddressId() === address.id"
+                  (change)="chooseAddress(address.id)">
+                <span><strong>{{ address.recipientName }}</strong><small>{{ addressLine(address) }}</small>
+                  @if (address.defaultShipping) { <b>Default delivery</b> }
+                </span>
+                <span aria-hidden="true">✓</span>
+              </label>
+            }
+            <label class="saved-address new-address-choice" [class.selected]="selectedAddressId() === 'new'">
+              <input type="radio" name="delivery-address" [checked]="selectedAddressId() === 'new'"
+                (change)="chooseAddress('new')">
+              <span><strong>Use a new address</strong><small>Add it securely below.</small></span>
+              <span aria-hidden="true">+</span>
+            </label>
+          </fieldset>
+        }
+
+        @if (selectedAddressId() === 'new') {
+          <form class="checkout-form delivery-form" [formGroup]="addressForm" (ngSubmit)="continue()" novalidate>
+            <div class="address-search-panel">
+              <div><span aria-hidden="true">⌕</span><div><strong>Find your address faster</strong><small>Choose a suggestion to fill the fields, then check the details.</small></div></div>
+              <div id="checkout-address-autocomplete" class="address-autocomplete-host"></div>
+              @if (autocompleteStatus() === 'loading') { <p role="status">Loading address suggestions…</p> }
+              @if (autocompleteStatus() === 'unavailable') {
+                <p>Address suggestions are not configured. You can enter the address manually below.</p>
+              }
+            </div>
+            <div class="manual-divider"><span>Delivery details</span></div>
+            <label>Full recipient name<input formControlName="recipientName" autocomplete="name"></label>
+            <label>Company <span>(optional)</span><input formControlName="company" autocomplete="organization"></label>
+            <div class="checkout-form-row street-row">
+              <label>Street<input formControlName="street" autocomplete="address-line1"></label>
+              <label>House number<input formControlName="houseNumber"></label>
+            </div>
+            <label>Address line 2 <span>(optional)</span><input formControlName="addressLine2" autocomplete="address-line2"></label>
+            <div class="checkout-form-row">
+              <label>Postal code<input formControlName="postalCode" autocomplete="postal-code"></label>
+              <label>City<input formControlName="city" autocomplete="address-level2"></label>
+            </div>
+            <div class="checkout-form-row">
+              <label>Region/state <span>(optional)</span><input formControlName="region" autocomplete="address-level1"></label>
+              <label>Country code<input formControlName="countryCode" maxlength="2" autocomplete="country"></label>
+            </div>
+            <label>Phone number<input id="delivery-phone" type="tel" formControlName="phone" autocomplete="tel"><small>Used only if the delivery team needs to reach you.</small></label>
+            @if (signedIn()) {
+              <label class="checkout-checkbox"><input type="checkbox" formControlName="defaultShipping"> Save as my default delivery address</label>
+              <label class="checkout-checkbox"><input type="checkbox" formControlName="defaultBilling"> Also use as my billing address</label>
+            }
+            @if (errorMessage()) { <p class="checkout-message error" role="alert">{{ errorMessage() }}</p> }
+            <button type="submit" class="checkout-primary" [disabled]="submitting()">
+              {{ submitting() ? 'Saving address…' : 'Continue to payment' }} <span aria-hidden="true">→</span>
+            </button>
+          </form>
+        } @else {
+          @if (errorMessage()) { <p class="checkout-message error" role="alert">{{ errorMessage() }}</p> }
+          <button type="button" class="checkout-primary saved-address-continue" (click)="continue()">
+            Deliver here and continue <span aria-hidden="true">→</span>
+          </button>
+        }
+      }
+    </section>
+
+    <app-checkout-summary />
+  </div>
+</main>

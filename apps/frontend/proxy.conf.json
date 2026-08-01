@@ -4,9 +4,14 @@
     "secure": false,
     "changeOrigin": true
   },
-  "/uploads": {
+  "/oauth2": {
     "target": "http://localhost:8080",
     "secure": false,
-    "changeOrigin": true
+    "changeOrigin": false
+  },
+  "/login/oauth2": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": false
   }
 }

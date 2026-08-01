@@ -23,12 +23,12 @@ class CatalogManagementServiceTest {
 
     @Test
     void categoryLifecycleRejectsCycles() {
-        Category root=catalog.create(new CategoryRequest("Shelves Test","shelves-test",null,null,null,1,true));
-        Category child=catalog.create(new CategoryRequest("Floating Test","floating-test",root.getId(),null,null,0,true));
-        assertThat(catalog.details(child.getId()).parentId()).isEqualTo(root.getId());
-        assertThatThrownBy(()->catalog.move(root.getId(),new MoveRequest(child.getId(),0))).isInstanceOf(ResponseStatusException.class);
-        catalog.update(root.getId(),new CategoryRequest("Shelving Test","shelving-test",null,"Edited",null,2,true));
-        assertThat(catalog.details(root.getId()).name()).isEqualTo("Shelving Test");
+        CategoryResponse root=catalog.create(new CategoryRequest("Shelves Test","shelves-test",null,null,null,1,true));
+        CategoryResponse child=catalog.create(new CategoryRequest("Floating Test","floating-test",root.id(),null,null,0,true));
+        assertThat(catalog.details(child.id()).parentId()).isEqualTo(root.id());
+        assertThatThrownBy(()->catalog.move(root.id(),new MoveRequest(child.id(),0))).isInstanceOf(ResponseStatusException.class);
+        catalog.update(root.id(),new CategoryRequest("Shelving Test","shelving-test",null,"Edited",null,2,true));
+        assertThat(catalog.details(root.id()).name()).isEqualTo("Shelving Test");
     }
 
     @Test

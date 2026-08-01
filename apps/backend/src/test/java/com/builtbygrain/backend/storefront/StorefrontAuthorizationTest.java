@@ -1,6 +1,7 @@
 package com.builtbygrain.backend.storefront;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -14,7 +15,7 @@ import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -30,7 +31,7 @@ class StorefrontAuthorizationTest {
     @Test
     void publicAggregateIsAnonymous() throws Exception {
         mockMvc.perform(get("/api/public/storefront")).andExpect(status().isOk());
-        mockMvc.perform(get("/api/admin/storefront/settings").with(httpBasic("admin", "admin")))
+        mockMvc.perform(get("/api/admin/storefront/settings").with(user("admin").roles("ADMIN")).with(csrf()))
             .andExpect(status().isOk());
     }
 
@@ -39,7 +40,6 @@ class StorefrontAuthorizationTest {
         List<Supplier<MockHttpServletRequestBuilder>> requests = List.of(
             () -> get("/api/admin/storefront/settings"),
             () -> put("/api/admin/storefront/settings").contentType(MediaType.APPLICATION_JSON).content("{}"),
-            () -> multipart("/api/admin/storefront/settings/hero-image"),
             () -> get("/api/admin/storefront/navigation-groups"),
             () -> post("/api/admin/storefront/navigation-groups").contentType(MediaType.APPLICATION_JSON).content("{}"),
             () -> put("/api/admin/storefront/navigation-groups/1").contentType(MediaType.APPLICATION_JSON).content("{}"),
@@ -56,8 +56,13 @@ class StorefrontAuthorizationTest {
         );
 
         for (Supplier<MockHttpServletRequestBuilder> request : requests) {
-            mockMvc.perform(request.get()).andExpect(status().isUnauthorized());
-            mockMvc.perform(request.get().with(httpBasic("user", "password"))).andExpect(status().isForbidden());
+            mockMvc.perform(request.get().with(csrf())).andExpect(status().isUnauthorized());
+            mockMvc.perform(request.get().with(user("user").roles("USER")).with(csrf())).andExpect(status().isForbidden());
         }
+        mockMvc.perform(multipart("/api/admin/storefront/settings/hero-image").with(csrf()))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(multipart("/api/admin/storefront/settings/hero-image")
+                .with(user("user").roles("USER")).with(csrf()))
+            .andExpect(status().isForbidden());
     }
 }

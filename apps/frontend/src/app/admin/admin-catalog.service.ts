@@ -16,7 +16,6 @@ export interface CatalogOption { id: number; productId: number; name: string; co
 export interface CatalogVariant { id:number; publicId:string; productId:number; sku?:string; label:string; optionValues:{optionId:number;optionName:string;valueId:number;label:string}[]; regularPriceCents:number; salePriceCents?:number; stockQuantity:number; availabilityStatus:string; active:boolean; allowBackorder:boolean; deliveryEstimate?:string; primaryImageUrl?:string; imageUrls:string[]; }
 export interface CatalogImage { id:number; url:string; altText?:string; filename:string; sortOrder:number; shared:boolean; active:boolean; usages:string[]; }
 export interface ListingImages { primaryImageId:number|null; hoverImageId:number|null; }
-export interface CatalogResetResponse { productsDeleted:number; variantsDeleted:number; categoriesDeleted:number; }
 
 @Injectable({ providedIn: 'root' })
 export class AdminCatalogService {
@@ -37,7 +36,6 @@ export class AdminCatalogService {
   updateCategory(id:number,request:CategoryRequest): Observable<CategoryDetails> { return this.http.put<CategoryDetails>(`/api/admin/categories/${id}`,request); }
   setCategoryStatus(id:number,active:boolean): Observable<CategoryDetails> { return this.http.patch<CategoryDetails>(`/api/admin/categories/${id}/status`,{active}); }
   deleteCategory(id:number): Observable<void> { return this.http.delete<void>(`/api/admin/categories/${id}?confirmed=true`); }
-  resetCatalog(confirmation:string): Observable<CatalogResetResponse> { return this.http.post<CatalogResetResponse>('/api/admin/catalog/reset',{confirmation}); }
   moveCategory(id: number, parentId: number | null, sortOrder: number) {
     return this.http.patch(`/api/admin/categories/${id}/move`, { parentId, sortOrder });
   }

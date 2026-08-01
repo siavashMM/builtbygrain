@@ -1,0 +1,45 @@
+app-account-auth { display: block; color: var(--ink); background: #f7f6f1; }
+.account-auth-page { min-height: calc(100vh - 116px); display: grid; grid-template-columns: minmax(320px, .9fr) minmax(480px, 1.1fr); background: #e8ece7; }
+.auth-story { min-height: 720px; display: grid; align-content: end; gap: 18px; padding: clamp(42px, 7vw, 110px); color: white; background: linear-gradient(155deg, rgba(21,52,41,.1), rgba(21,52,41,.92)), radial-gradient(circle at 80% 10%, #809485, transparent 42%), #244c3e; }
+.auth-story h1 { max-width: 640px; margin: 0; font-family: Georgia, serif; font-size: clamp(3.6rem, 7vw, 7.2rem); font-weight: 500; line-height: .88; letter-spacing: -.055em; }
+.auth-story p { max-width: 520px; margin: 6px 0 0; color: #e0e8e3; font-size: 1.05rem; line-height: 1.7; }
+.auth-kicker { width: max-content; padding: 8px 13px; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; font-size: .72rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.auth-card { width: min(570px, calc(100% - 48px)); align-self: center; justify-self: center; padding: clamp(38px, 6vw, 72px); border-radius: 24px; background: white; box-shadow: 0 22px 70px rgba(25,42,34,.1); }
+.auth-brand { width: max-content; display: flex; align-items: center; gap: 11px; margin-bottom: 44px; color: var(--forest); text-decoration: none; font-weight: 850; }
+.auth-brand img { width: 42px; height: 42px; object-fit: contain; }
+.auth-card h1 { margin: 6px 0 12px; font-family: Georgia, serif; font-size: clamp(2.25rem, 4vw, 3.8rem); font-weight: 500; line-height: 1; }
+.auth-intro { margin: 0 0 30px; color: var(--muted); line-height: 1.65; }
+.eyebrow { margin: 0; color: var(--forest); font-size: .72rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+.auth-card form { display: grid; gap: 18px; }
+.auth-card label { display: grid; gap: 8px; font-size: .78rem; font-weight: 750; }
+.auth-card label > span { color: var(--muted); font-weight: 500; }
+.auth-card input { width: 100%; min-height: 50px; box-sizing: border-box; padding: 0 15px; border: 1px solid #cbd2cc; border-radius: 10px; color: var(--ink); background: white; font: inherit; font-size: .9rem; font-weight: 500; }
+.auth-card input:focus { border-color: var(--forest); outline: 3px solid rgba(35,83,65,.16); outline-offset: 1px; }
+.auth-card input[aria-invalid="true"] { border-color: #a43d32; }
+.auth-card small { color: var(--muted); font-size: .7rem; font-weight: 500; }
+.field-error { color: #9b302b !important; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-link { justify-self: end; margin-top: -8px; color: var(--forest); font-size: .78rem; font-weight: 750; }
+.account-primary { min-height: 50px; display: inline-grid; place-items: center; box-sizing: border-box; padding: 0 24px; border: 1px solid var(--forest); border-radius: 999px; color: white; background: var(--forest); font: inherit; font-size: .8rem; font-weight: 850; cursor: pointer; }
+.account-primary:hover:not(:disabled) { background: #173b2e; }
+.account-primary:disabled { cursor: wait; opacity: .6; }
+.account-message { margin: 0; padding: 12px 14px; border-radius: 9px; font-size: .78rem; line-height: 1.5; }
+.account-message.error { color: #812c25; background: #fbedeb; }
+.account-message.success { color: #19583f; background: #e9f5ee; }
+.auth-switch { margin: 28px 0 0; color: var(--muted); text-align: center; font-size: .82rem; }
+.auth-switch a { color: var(--forest); font-weight: 800; }
+
+@media (max-width: 900px) {
+  .account-auth-page { grid-template-columns: 1fr; }
+  .auth-story { min-height: 330px; padding: 42px 24px; }
+  .auth-story h1 { font-size: 4rem; }
+  .auth-card { margin: -36px auto 54px; z-index: 1; }
+}
+
+@media (max-width: 620px) {
+  .account-auth-page { min-height: 100vh; }
+  .auth-story { display: none; }
+  .auth-card { width: 100%; min-height: calc(100vh - 70px); margin: 0; padding: 38px 20px; border-radius: 0; box-shadow: none; }
+  .auth-brand { margin-bottom: 36px; }
+  .form-row { grid-template-columns: 1fr; }
+}

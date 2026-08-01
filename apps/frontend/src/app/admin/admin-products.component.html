@@ -52,10 +52,4 @@
         }
     </div>
   </div>
-  @if (workspace === 'categories') {
-    <details class="catalog-danger-zone">
-      <summary>Catalog maintenance</summary>
-      <div><span><strong>Reset the entire catalog</strong><small>This permanently removes all categories, products, options, and variants. Uploaded files remain on disk.</small></span><button type="button" class="admin-danger-button" [disabled]="actionState() === 'saving'" (click)="resetCatalog()">Reset catalog</button></div>
-    </details>
-  }
 </section>

@@ -43,4 +43,21 @@ describe('ProductCardComponent', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.product-category-link')?.getAttribute('href'))
       .toBe('/category/office/desks/standing-desks');
   });
+
+  it('does not create the hover image until pointer or keyboard interaction', async () => {
+    await TestBed.configureTestingModule({ imports: [ProductCardComponent], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ProductCardComponent);
+    fixture.componentInstance.product = {
+      id: 3, name: 'Bench', slug: 'bench', currency: 'EUR', fromPriceCents: 9900,
+      primaryImageUrl: '/bench.jpg', hoverImageUrl: '/bench-hover.jpg', categoryId: 1,
+      categoryName: 'Furniture', categorySlug: 'furniture', colorSwatches: []
+    } satisfies ProductCard;
+    fixture.detectChanges();
+
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.listing-image-link')!;
+    expect(link.querySelector('.listing-image-hover')).toBeNull();
+    link.dispatchEvent(new PointerEvent('pointerenter'));
+    fixture.detectChanges();
+    expect(link.querySelector<HTMLImageElement>('.listing-image-hover')?.src).toContain('/bench-hover.jpg');
+  });
 });
