@@ -43,9 +43,12 @@ class SecurityConfigTest {
     @Autowired ObjectMapper objectMapper;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder passwordEncoder;
+    @Autowired RateLimitService rateLimits;
+    @Autowired RateLimitProperties rateLimitProperties;
 
     @BeforeEach
     void clearSecurityState() {
+        jdbc.update("DELETE FROM rate_limit_buckets");
         jdbc.update("DELETE FROM admin_login_attempts");
         jdbc.update("DELETE FROM spring_session");
         jdbc.update(
@@ -252,10 +255,15 @@ class SecurityConfigTest {
     }
 
     @Test
-    void fifthKnownAccountFailureIsThrottled() throws Exception {
+    void accountLimitAppliesAcrossDifferentIpAddresses() throws Exception {
         Csrf csrf = csrf();
-        for (int attempt = 1; attempt < 5; attempt++) {
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            int addressSuffix = attempt;
             mockMvc.perform(post("/api/admin/auth/login")
+                    .with(request -> {
+                        request.setRemoteAddr("198.51.100." + addressSuffix);
+                        return request;
+                    })
                     .cookie(csrf.cookie())
                     .header("X-XSRF-TOKEN", csrf.token())
                     .contentType(MediaType.APPLICATION_JSON)
@@ -264,23 +272,27 @@ class SecurityConfigTest {
         }
 
         mockMvc.perform(post("/api/admin/auth/login")
+                .with(request -> {
+                    request.setRemoteAddr("198.51.100.6");
+                    return request;
+                })
                 .cookie(csrf.cookie())
                 .header("X-XSRF-TOKEN", csrf.token())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"username\":\"admin\",\"password\":\"wrong\"}"))
             .andExpect(status().isTooManyRequests())
-            .andExpect(header().string(HttpHeaders.RETRY_AFTER, "900"));
+            .andExpect(header().exists(HttpHeaders.RETRY_AFTER));
     }
 
     @Test
-    void unknownAccountsOnlyConsumeTheTwentyAttemptIpScope() throws Exception {
+    void ipLimitAppliesAcrossDifferentAccountNames() throws Exception {
         Csrf csrf = csrf();
-        for (int attempt = 1; attempt < 20; attempt++) {
+        for (int attempt = 1; attempt <= 10; attempt++) {
             mockMvc.perform(post("/api/admin/auth/login")
                     .cookie(csrf.cookie())
                     .header("X-XSRF-TOKEN", csrf.token())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"unknown\",\"password\":\"wrong\"}"))
+                    .content("{\"username\":\"unknown" + attempt + "\",\"password\":\"wrong\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("Unauthorized"));
         }
@@ -289,22 +301,82 @@ class SecurityConfigTest {
                 .cookie(csrf.cookie())
                 .header("X-XSRF-TOKEN", csrf.token())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"unknown\",\"password\":\"wrong\"}"))
+                .content("{\"username\":\"unknown11\",\"password\":\"wrong\"}"))
             .andExpect(status().isTooManyRequests())
-            .andExpect(header().string(HttpHeaders.RETRY_AFTER, "900"));
+            .andExpect(header().exists(HttpHeaders.RETRY_AFTER));
         assertThat(jdbc.queryForObject(
-            "SELECT COUNT(*) FROM admin_login_attempts WHERE scope_type='ACCOUNT_IP'",
+            "SELECT request_count FROM rate_limit_buckets WHERE policy='ADMIN_LOGIN_IP'",
             Integer.class
-        )).isZero();
+        )).isEqualTo(10);
+    }
+
+    @Test
+    void successfulLoginResetsOnlyTheAccountBucketAndKeepsTheIpReservation() throws Exception {
+        String address = "203.0.113.42";
+        for (int attempt = 1; attempt <= 9; attempt++) {
+            assertThat(rateLimits.consume(java.util.List.of(new RateLimitService.Rule(
+                "ADMIN_LOGIN_IP",
+                address,
+                rateLimitProperties.getAdminLoginIp()
+            ))).allowed()).isTrue();
+        }
+
+        AuthenticatedAdmin admin = login("admin", "admin", address);
+        assertThat(admin.session().getValue()).isNotBlank();
+        assertThat(rateLimits.check(java.util.List.of(new RateLimitService.Rule(
+            "ADMIN_LOGIN_IP",
+            address,
+            rateLimitProperties.getAdminLoginIp()
+        ))).allowed()).isFalse();
+        assertThat(rateLimits.check(java.util.List.of(new RateLimitService.Rule(
+            "ADMIN_LOGIN_ACCOUNT",
+            "admin",
+            rateLimitProperties.getAdminLoginAccount()
+        ))).allowed()).isTrue();
+    }
+
+    @Test
+    void authenticatedAdminUploadsUseWriteAndUploadPolicies() throws Exception {
+        AuthenticatedAdmin admin = login("admin", "admin");
+        Csrf csrf = csrf(admin.session());
+        RateLimitService.Rule uploadRule = new RateLimitService.Rule(
+            ApiRateLimitFilter.ADMIN_UPLOAD_POLICY,
+            "admin",
+            rateLimitProperties.getAdminUpload()
+        );
+        for (int attempt = 0; attempt < rateLimitProperties.getAdminUpload().getAttempts(); attempt++) {
+            assertThat(rateLimits.consume(java.util.List.of(uploadRule)).allowed()).isTrue();
+        }
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/products/1/images")
+                .file("images", "image".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                .cookie(admin.session(), csrf.cookie())
+                .header("X-XSRF-TOKEN", csrf.token()))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+            .andExpect(jsonPath("$.error").value("Too many requests. Please try again later."));
     }
 
     private AuthenticatedAdmin login(String username, String password) throws Exception {
+        return login(username, password, null);
+    }
+
+    private AuthenticatedAdmin login(String username, String password, String remoteAddress) throws Exception {
         Csrf csrf = csrf();
-        MvcResult result = mockMvc.perform(post("/api/admin/auth/login")
+        MockHttpServletRequestBuilder request = post("/api/admin/auth/login")
                 .cookie(csrf.cookie())
                 .header("X-XSRF-TOKEN", csrf.token())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new Credentials(username, password))))
+                .content(objectMapper.writeValueAsString(new Credentials(username, password)));
+        if (remoteAddress != null) {
+            request.with(mockRequest -> {
+                mockRequest.setRemoteAddr(remoteAddress);
+                return mockRequest;
+            });
+        }
+        MvcResult result = mockMvc.perform(request)
             .andExpect(status().isOk())
             .andReturn();
         String sessionCookie = result.getResponse().getHeaders(HttpHeaders.SET_COOKIE).stream()

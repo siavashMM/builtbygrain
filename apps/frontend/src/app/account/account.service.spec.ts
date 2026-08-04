@@ -99,6 +99,7 @@ function profile(): CustomerProfile {
     phone: null,
     locale: 'en',
     emailVerified: false,
+    passwordSet: true,
     accountStatus: 'ACTIVE',
     createdAt: '2026-07-26T10:00:00'
   };

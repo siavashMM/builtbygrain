@@ -13,6 +13,24 @@ Built by Grain will use a simple monorepo structure with separate frontend and b
 - `infra`: Podman, database, and deployment configuration.
 - `scripts`: Developer automation such as setup, linting, or local checks.
 
+## Production request edge
+
+Production uses a same-origin HTTPS edge in front of both applications:
+
+```text
+Browser -> optional managed CDN -> Caddy HTTPS edge
+                                  |-> Angular static files
+                                  `-> /api and OAuth -> Spring Boot
+```
+
+The edge owns HTTPS, HTTP-to-HTTPS redirects, static compression and caching,
+broad per-client traffic limits, forwarding-header sanitation, and API routing.
+Spring Boot remains authoritative for authentication and applies shared
+PostgreSQL rate limits using account, client-address, reset-token, and
+authenticated-principal scopes. A managed CDN may cache only the explicitly
+public responses; account, admin, OAuth, and other personalized responses must
+not be cached.
+
 ## Initial Backend Direction
 
 The backend should expose REST APIs and keep business logic separate from controllers.

@@ -1,0 +1,123 @@
+{
+	servers {
+		# Direct clients use their socket address. When a CDN is used, replace the
+		# default with that provider's published egress CIDRs.
+		trusted_proxies static {$TRUSTED_PROXY_CIDRS:192.0.2.0/24}
+		trusted_proxies_strict
+		client_ip_headers {$CLIENT_IP_HEADERS:X-Forwarded-For}
+	}
+}
+
+{$APP_DOMAIN:localhost} {
+	encode zstd gzip
+
+	log {
+		output stdout
+		format json
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Broad edge controls protect Spring threads and database connections. The
+	# application enforces stricter identity- and token-aware policies.
+	rate_limit {
+		zone backend_per_ip {
+			match {
+				path /api/* /oauth2/* /login/oauth2/*
+			}
+			key {client_ip}
+			events 600
+			window 1m
+			ipv6_prefix 64
+		}
+
+		zone auth_per_ip {
+			match {
+				path /api/admin/auth/* /api/account/auth/*
+			}
+			key {client_ip}
+			events 30
+			window 1m
+			ipv6_prefix 64
+		}
+
+		zone public_api_per_ip {
+			match {
+				method GET HEAD
+				path /api/public/* /api/navigation/*
+			}
+			key {client_ip}
+			events 300
+			window 1m
+			ipv6_prefix 64
+		}
+
+		zone upload_per_ip {
+			match {
+				method POST
+				path /api/admin/*
+				header Content-Type multipart/form-data*
+			}
+			key {client_ip}
+			events 20
+			window 10m
+			ipv6_prefix 64
+		}
+
+		jitter 0.2
+	}
+
+	@backend {
+		path /api/* /oauth2/* /login/oauth2/*
+	}
+
+	@publicCatalog {
+		method GET HEAD
+		path /api/public/products /api/public/products/* /api/public/categories /api/public/category /api/public/storefront /api/navigation/categories
+	}
+	header @publicCatalog Cache-Control "public, max-age=60, s-maxage=300, stale-while-revalidate=300"
+
+	handle @backend {
+		request_body {
+			max_size 42MB
+		}
+		reverse_proxy {$BACKEND_UPSTREAM:host.containers.internal:8080} {
+			health_uri /api/health
+			health_interval 30s
+			health_timeout 2s
+
+			# Caddy replaces X-Forwarded-For/Host/Proto itself and only accepts an
+			# upstream chain from the explicitly trusted proxy CIDRs above.
+			header_up -Forwarded
+		}
+	}
+
+	@fingerprintedAssets path_regexp fingerprinted ^/.*-[A-Z0-9]{8,}\.(?:css|js|mjs)$
+	header @fingerprintedAssets Cache-Control "public, max-age=31536000, immutable"
+	@staticAssets path *.woff *.woff2 *.png *.jpg *.jpeg *.webp *.gif *.svg *.ico
+	header @staticAssets Cache-Control "public, max-age=3600"
+	header /index.html Cache-Control "no-cache"
+
+	handle {
+		root * /srv/frontend
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle_errors {
+		@rateLimited expression {http.error.status_code} == 429
+		header @rateLimited Content-Type application/json
+		header @rateLimited Cache-Control no-store
+		header @rateLimited -Server
+		respond @rateLimited `{"error":"Too many requests. Please try again later."}` 429
+
+		respond "Request failed" {http.error.status_code}
+	}
+}

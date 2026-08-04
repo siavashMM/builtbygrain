@@ -88,7 +88,7 @@
                 </div>
                 <div>
                   <dt><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l2 2M14 9l2 2"/></svg><span>Password</span></dt>
-                  <dd>••••••••••••</dd>
+                  <dd>{{ profile.passwordSet ? '••••••••••••' : 'Not set — social sign-in' }}</dd>
                 </div>
               </dl>
               <a class="profile-manage-link" routerLink="/account/details">
@@ -229,15 +229,29 @@
         </section>
       }
 
-      @if (view === 'security') {
+      @if (view === 'security' && customer(); as profile) {
         <section class="account-editor">
-          <div class="editor-intro"><p class="eyebrow">Security</p><h1>Change your password</h1><p>Changing it signs every active session out, including this one.</p></div>
-          <form class="account-form" [formGroup]="passwordForm" (ngSubmit)="changePassword()" novalidate>
-            <label>Current password<input type="password" formControlName="currentPassword" autocomplete="current-password"></label>
-            <label>New password<input type="password" formControlName="newPassword" autocomplete="new-password"><small>Use at least 12 characters.</small></label>
-            <label>Confirm new password<input type="password" formControlName="confirmPassword" autocomplete="new-password"></label>
-            <button class="account-primary" type="submit" [disabled]="submitting()">{{ submitting() ? 'Updating…' : 'Change password' }}</button>
-          </form>
+          @if (profile.passwordSet) {
+            <div class="editor-intro"><p class="eyebrow">Security</p><h1>Change your password</h1><p>Changing it signs every active session out, including this one.</p></div>
+            <form class="account-form" [formGroup]="passwordForm" (ngSubmit)="changePassword()" novalidate>
+              <label>Current password<input type="password" formControlName="currentPassword" autocomplete="current-password"></label>
+              <label>New password<input type="password" formControlName="newPassword" autocomplete="new-password"><small>Use at least 12 characters.</small></label>
+              <label>Confirm new password<input type="password" formControlName="confirmPassword" autocomplete="new-password"></label>
+              <button class="account-primary" type="submit" [disabled]="submitting()">{{ submitting() ? 'Updating…' : 'Change password' }}</button>
+            </form>
+          } @else {
+            <div class="editor-intro"><p class="eyebrow">Security</p><h1>Add a password</h1><p>Your account currently uses social sign-in, so there is no current password to enter.</p></div>
+            <div class="account-form password-setup-card">
+              <div>
+                <h2>Create an optional password</h2>
+                <p>We’ll email a one-time link to <strong>{{ profile.email }}</strong>. It expires after 30 minutes. You can keep using social sign-in after adding a password.</p>
+              </div>
+              <button class="account-primary" type="button" (click)="requestPasswordSetup()"
+                [disabled]="submitting() || passwordSetupSent()">
+                {{ submitting() ? 'Sending…' : passwordSetupSent() ? 'Email sent' : 'Send password setup link' }}
+              </button>
+            </div>
+          }
         </section>
       }
 

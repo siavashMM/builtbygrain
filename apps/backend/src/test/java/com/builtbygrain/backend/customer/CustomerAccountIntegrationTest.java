@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,16 +40,19 @@ class CustomerAccountIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @Autowired JdbcTemplate jdbc;
+    @Autowired CustomerRepository customers;
 
     @MockitoBean PasswordResetMailService mail;
 
     @BeforeEach
     void clearCustomerData() {
+        jdbc.update("DELETE FROM rate_limit_buckets");
         jdbc.update("DELETE FROM customer_auth_requests");
         jdbc.update("DELETE FROM admin_login_attempts");
         jdbc.update("DELETE FROM spring_session");
         jdbc.update("DELETE FROM customer_password_reset_tokens");
         jdbc.update("DELETE FROM customer_addresses");
+        jdbc.update("DELETE FROM customer_social_identities");
         jdbc.update("DELETE FROM customers");
         clearInvocations(mail);
     }
@@ -309,6 +313,47 @@ class CustomerAccountIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new Reset(expiredCaptor.getValue(), "fourth correct horse grain"))))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void socialOnlyCustomerCanCreateAnOptionalPasswordThroughTheVerifiedEmailFlow() throws Exception {
+        Customer socialOnly = new Customer(
+            "social@example.test",
+            "social@example.test",
+            null,
+            "Social",
+            "Customer",
+            "en"
+        );
+        socialOnly.markEmailVerified();
+        customers.saveAndFlush(socialOnly);
+
+        mockMvc.perform(get("/api/account/profile")
+                .with(user("social@example.test").roles("CUSTOMER")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.emailVerified").value(true))
+            .andExpect(jsonPath("$.passwordSet").value(false));
+
+        requestReset("social@example.test");
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mail).send(any(Customer.class), tokenCaptor.capture());
+
+        Csrf resetCsrf = csrf();
+        mockMvc.perform(post("/api/account/auth/reset-password")
+                .cookie(resetCsrf.cookie())
+                .header("X-XSRF-TOKEN", resetCsrf.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new Reset(tokenCaptor.getValue(), "optional social password")
+                )))
+            .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+            "SELECT password_hash FROM customers WHERE normalized_email=?",
+            String.class,
+            "social@example.test"
+        )).startsWith("{bcrypt}");
+        login("social@example.test", "optional social password");
     }
 
     private AuthenticatedCustomer register(String email, String password, String returnUrl) throws Exception {

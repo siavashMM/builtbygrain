@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -41,7 +42,9 @@ public class SecurityConfig {
         CsrfTokenRepository csrfTokenRepository,
         ClientRegistrationRepository clientRegistrations,
         CustomerSocialAuthenticationSuccessHandler socialSuccessHandler,
-        CustomerSocialAuthenticationFailureHandler socialFailureHandler
+        CustomerSocialAuthenticationFailureHandler socialFailureHandler,
+        RateLimitService rateLimits,
+        RateLimitProperties rateLimitProperties
     ) throws Exception {
         CsrfTokenRequestAttributeHandler csrfHandler = new CsrfTokenRequestAttributeHandler();
         csrfHandler.setCsrfRequestAttributeName("_csrf");
@@ -88,7 +91,11 @@ public class SecurityConfig {
                 .failureHandler(socialFailureHandler)
             )
             .httpBasic(basic -> basic.disable())
-            .logout(logout -> logout.disable());
+            .logout(logout -> logout.disable())
+            .addFilterAfter(
+                new ApiRateLimitFilter(rateLimits, rateLimitProperties),
+                AuthorizationFilter.class
+            );
 
         return http.build();
     }

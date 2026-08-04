@@ -2,6 +2,10 @@
 
 This document will describe the REST API between the Angular frontend and Spring Boot backend.
 
+Rate-limited endpoints return `429 Too Many Requests` with a whole-second
+`Retry-After` header and a generic JSON error. Clients must stop automatic
+retries until that delay has passed. Rate-limit responses are never cacheable.
+
 The initial health endpoint is implemented.
 
 ## Current Endpoints

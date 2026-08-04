@@ -21,13 +21,20 @@ describe('ShopNavigationComponent', () => {
       group(2, 'Living', [category(20, null, 'Shelves', '/category/living/shelves')], [])
     ]);
     const element = fixture.nativeElement as HTMLElement;
+    const header = element.querySelector<HTMLElement>('.site-header')!;
+    const groupNavigation = element.querySelector<HTMLElement>('.navigation-group-nav')!;
     const triggers = element.querySelectorAll<HTMLButtonElement>('.navigation-group-trigger');
 
+    expect(getComputedStyle(header).borderBottomWidth).toBe('0px');
+    expect(getComputedStyle(groupNavigation).borderTopWidth).toBe('0px');
     triggers[0].dispatchEvent(new Event('mouseenter'));
     fixture.detectChanges();
     expect(triggers[0].getAttribute('aria-expanded')).toBe('true');
+    expect(triggers[0].querySelector('span')?.textContent).toContain('Office');
+    expect(triggers[0].querySelector('svg')).toBeNull();
     expect(element.querySelector('.storefront-mega-menu h2')?.textContent).toContain('Office');
     expect(element.querySelectorAll('.mega-product-card').length).toBe(3);
+    expect(element.querySelector('.mega-menu-backdrop')).toBeNull();
     expect(Array.from(element.querySelectorAll('.mega-product-card strong')).map(node => node.textContent)).toEqual(['Featured 1', 'Featured 2', 'Featured 3']);
     expect(element.querySelector<HTMLAnchorElement>('a[href="/category/office/desks/standing-desks"]')).not.toBeNull();
 
@@ -39,6 +46,70 @@ describe('ShopNavigationComponent', () => {
     triggers[1].click();
     fixture.detectChanges();
     expect(element.querySelector('.storefront-mega-menu')).toBeNull();
+  });
+
+  it('overlays the homepage hero at the top and becomes a solid fixed header after scrolling', async () => {
+    const scrollY = spyOnProperty(window, 'scrollY', 'get').and.returnValue(0);
+    const fixture = await createNavigation([
+      group(1, 'Office', [category(10, null, 'Office', '/category/office')], [card(1)])
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+    const header = element.querySelector<HTMLElement>('.site-header')!;
+    const logo = element.querySelector<HTMLImageElement>('.shop-brand .brand-mark img')!;
+
+    expect(header.classList).toContain('homepage-header');
+    expect(header.classList).toContain('header-at-top');
+    expect(header.classList).not.toContain('header-scrolled');
+    expect(logo.getAttribute('src')).toBe('/builtbygrain-mark.png');
+    expect(getComputedStyle(logo).mixBlendMode).toBe('normal');
+    expect(getComputedStyle(logo).filter).toContain('invert(1)');
+
+    element.querySelector<HTMLButtonElement>('.navigation-group-trigger')!.click();
+    fixture.detectChanges();
+    expect(header.classList).toContain('header-interacting');
+
+    scrollY.and.returnValue(80);
+    window.dispatchEvent(new Event('scroll'));
+    fixture.detectChanges();
+
+    expect(header.classList).toContain('header-scrolled');
+    expect(header.classList).not.toContain('header-at-top');
+    expect(header.classList).not.toContain('header-interacting');
+    expect(element.querySelector('.storefront-mega-menu')).toBeNull();
+  });
+
+  it('renders a primary search field and offers matching product and collection suggestions', async () => {
+    const fixture = await createNavigation([
+      group(1, 'Office', [category(10, null, 'Office', '/category/office')], [card(1), card(2)])
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+    const mainNavChildren = Array.from(element.querySelector('.main-nav')!.children);
+    const brandIndex = mainNavChildren.findIndex(child => child.classList.contains('shop-brand'));
+    const searchIndex = mainNavChildren.findIndex(child => child.classList.contains('header-search'));
+    const actionsIndex = mainNavChildren.findIndex(child => child.classList.contains('nav-actions'));
+
+    expect(brandIndex).toBeLessThan(searchIndex);
+    expect(searchIndex).toBeLessThan(actionsIndex);
+
+    const input = element.querySelector<HTMLInputElement>('#storefront-product-search')!;
+    input.focus();
+    fixture.detectChanges();
+    TestBed.inject(HttpTestingController).expectOne('/api/public/products').flush([card(1), card(2)]);
+    fixture.detectChanges();
+    expect(element.querySelector('.search-category-results a')?.textContent).toContain('Office');
+
+    input.value = 'Featured 2';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+    expect(element.querySelector('.header-search-panel')).not.toBeNull();
+    expect(element.querySelector('.search-product-results strong')?.textContent).toContain('Featured 2');
+
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    element.querySelector<HTMLFormElement>('.header-search')!.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+    expect(navigate).toHaveBeenCalledWith(['/products', 'featured-2']);
   });
 
   it('links the account icon to the protected account entry point', async () => {

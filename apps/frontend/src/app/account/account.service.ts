@@ -10,6 +10,7 @@ export interface CustomerProfile {
   phone: string | null;
   locale: string;
   emailVerified: boolean;
+  passwordSet: boolean;
   accountStatus: string;
   createdAt: string;
 }
@@ -34,6 +35,11 @@ export interface CustomerAddress {
 
 export type AddressInput = Omit<CustomerAddress, 'id' | 'createdAt' | 'updatedAt'>;
 
+export interface SocialProviders {
+  google: boolean;
+  apple: boolean;
+}
+
 interface AuthResponse {
   customer: CustomerProfile;
   returnUrl: string;
@@ -51,6 +57,7 @@ export class AccountService {
   private readonly currentCustomer = signal<CustomerProfile | null>(null);
   private csrfRequest: Observable<CsrfResponse> | null = null;
   private sessionRequest: Observable<boolean> | null = null;
+  private socialProvidersRequest: Observable<SocialProviders> | null = null;
 
   readonly customer = this.currentCustomer.asReadonly();
 
@@ -75,6 +82,18 @@ export class AccountService {
       tap(response => this.setCustomer(response.customer)),
       switchMap(response => this.ensureCsrf(true).pipe(map(() => response)))
     );
+  }
+
+  availableSocialProviders(): Observable<SocialProviders> {
+    if (this.socialProvidersRequest === null) {
+      this.socialProvidersRequest = this.http.get<{ socialProviders: SocialProviders }>(
+        '/api/public/checkout/config'
+      ).pipe(
+        map(config => config.socialProviders),
+        shareReplay({ bufferSize: 1, refCount: false })
+      );
+    }
+    return this.socialProvidersRequest;
   }
 
   validateSession(): Observable<boolean> {

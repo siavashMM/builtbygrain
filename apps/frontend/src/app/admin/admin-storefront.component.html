@@ -74,7 +74,7 @@
               <input #heroImage id="hero-image" type="file" accept="image/jpeg,image/png,image/webp,image/gif"
                 (change)="chooseHeroFile(heroImage)" [disabled]="saving()">
             </label>
-            <p class="field-help">JPEG, PNG, WebP, or GIF within the configured upload limit. The current image stays live unless replacement succeeds.</p>
+            <p class="field-help">The image always fills the hero edge to edge; screens with a different shape crop the outer edges automatically. For minimal cropping, use a wide image around 2.2:1 (for example 2640 × 1200 px). JPEG, PNG, WebP, and GIF are supported within the configured upload limit.</p>
             @if (heroFile()) { <p class="selection-summary">Selected: {{ heroFile()!.name }}</p> }
             @if (action() === 'hero-upload') {
               <div class="upload-progress" role="status" aria-live="polite">

@@ -34,6 +34,12 @@ Open `http://localhost:8025` to read development messages. The API never returns
 logs raw reset tokens. Production should point the standard Spring Mail settings at
 the transactional email provider.
 
+The authenticated profile includes `passwordSet` so the Security page can distinguish
+password accounts from social-only accounts. Password accounts must provide their
+current password to make a change. Social-only accounts receive the same single-use
+email link to create an optional password; the browser session alone cannot create a
+new login secret.
+
 ## Configuration
 
 | Environment variable | Default | Purpose |

@@ -65,3 +65,18 @@ verify: backend-test frontend-test
 security-check:
     cd apps/frontend && npm audit --audit-level=high
     cd apps/backend && env -u DEBUG ./mvnw org.owasp:dependency-check-maven:12.2.2:check -DfailBuildOnCVSS=7
+
+# Build the production HTTPS/reverse-proxy image, including the Angular bundle.
+edge-build:
+    podman build -f infra/edge/Dockerfile -t builtbygrain-edge .
+
+# Validate the packaged Caddy configuration without starting a listener.
+edge-validate: edge-build
+    podman run --rm --entrypoint caddy -e APP_DOMAIN=localhost builtbygrain-edge validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+# Start/stop the production edge. APP_DOMAIN must resolve to this host.
+edge-up:
+    podman compose -f infra/edge/compose.yaml up -d --build
+
+edge-down:
+    podman compose -f infra/edge/compose.yaml down

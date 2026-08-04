@@ -2,7 +2,6 @@ package com.builtbygrain.backend.customer;
 
 import java.security.Principal;
 
-import com.builtbygrain.backend.customer.CustomerAuthThrottleService.Action;
 import com.builtbygrain.backend.customer.CustomerDtos.AuthResponse;
 import com.builtbygrain.backend.customer.CustomerDtos.CustomerResponse;
 import com.builtbygrain.backend.customer.CustomerDtos.ForgotPasswordRequest;
@@ -12,6 +11,8 @@ import com.builtbygrain.backend.customer.CustomerDtos.PasswordChangeRequest;
 import com.builtbygrain.backend.customer.CustomerDtos.RegisterRequest;
 import com.builtbygrain.backend.customer.CustomerDtos.ResetPasswordRequest;
 import com.builtbygrain.backend.security.LoginThrottleService;
+import com.builtbygrain.backend.security.LoginThrottleService.Audience;
+import com.builtbygrain.backend.security.RateLimitService.Decision;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -34,7 +35,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/account/auth")
 public class CustomerAuthController {
 
-    private static final long RETRY_AFTER_SECONDS = 900;
     private static final MessageResponse FORGOT_RESPONSE = new MessageResponse(
         "If an account exists for that email address, a reset link has been sent."
     );
@@ -78,8 +78,9 @@ public class CustomerAuthController {
         HttpServletRequest request,
         HttpServletResponse response
     ) {
-        if (!requestThrottle.consume(Action.REGISTER, request.getRemoteAddr())) {
-            return throttled();
+        Decision rateLimit = requestThrottle.consumeRegistration(request.getRemoteAddr());
+        if (!rateLimit.allowed()) {
+            return throttled(rateLimit.retryAfterSeconds());
         }
         Customer customer = accounts.register(registration);
         sessions.authenticate(customer, request, response);
@@ -95,8 +96,9 @@ public class CustomerAuthController {
     ) {
         String normalizedEmail = CustomerAccountService.normalizeEmail(credentials.email());
         String address = request.getRemoteAddr();
-        if (loginThrottle.isBlocked(normalizedEmail, address)) {
-            return throttled();
+        Decision rateLimit = loginThrottle.reserveAttempt(Audience.CUSTOMER, normalizedEmail, address);
+        if (!rateLimit.allowed()) {
+            return throttled(rateLimit.retryAfterSeconds());
         }
         try {
             Authentication authentication = authenticationManager.authenticate(
@@ -106,16 +108,13 @@ public class CustomerAuthController {
                 "ROLE_CUSTOMER".equals(authority.getAuthority()))) {
                 throw new org.springframework.security.authentication.BadCredentialsException("Wrong account type");
             }
-            loginThrottle.recordSuccess(normalizedEmail, address);
             Customer customer = accounts.requireCustomer(authentication.getName());
             sessions.authenticate(customer, request, response);
+            loginThrottle.recordSuccess(Audience.CUSTOMER, normalizedEmail);
             return ResponseEntity.ok(
                 new AuthResponse(CustomerResponse.from(customer), safeReturnUrl(credentials.returnUrl()))
             );
         } catch (AuthenticationException exception) {
-            if (loginThrottle.recordFailure(normalizedEmail, address)) {
-                return throttled();
-            }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new AuthError("Email or password is incorrect"));
         }
@@ -141,9 +140,10 @@ public class CustomerAuthController {
         @Valid @RequestBody ForgotPasswordRequest forgot,
         HttpServletRequest request
     ) {
-        if (!requestThrottle.consume(Action.PASSWORD_RESET_REQUEST, request.getRemoteAddr())) {
+        Decision rateLimit = requestThrottle.consumePasswordResetRequest(forgot.email(), request.getRemoteAddr());
+        if (!rateLimit.allowed()) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header(HttpHeaders.RETRY_AFTER, Long.toString(RETRY_AFTER_SECONDS))
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(rateLimit.retryAfterSeconds()))
                 .body(FORGOT_RESPONSE);
         }
         passwords.requestReset(forgot.email());
@@ -155,9 +155,10 @@ public class CustomerAuthController {
         @Valid @RequestBody ResetPasswordRequest reset,
         HttpServletRequest request
     ) {
-        if (!requestThrottle.consume(Action.PASSWORD_RESET, request.getRemoteAddr())) {
+        Decision rateLimit = requestThrottle.consumePasswordReset(reset.token(), request.getRemoteAddr());
+        if (!rateLimit.allowed()) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header(HttpHeaders.RETRY_AFTER, Long.toString(RETRY_AFTER_SECONDS))
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(rateLimit.retryAfterSeconds()))
                 .body(new MessageResponse("Too many attempts. Please try again later."));
         }
         passwords.resetPassword(reset.token(), reset.newPassword());
@@ -191,9 +192,9 @@ public class CustomerAuthController {
         return candidate;
     }
 
-    private ResponseEntity<AuthError> throttled() {
+    private ResponseEntity<AuthError> throttled(long retryAfterSeconds) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-            .header(HttpHeaders.RETRY_AFTER, Long.toString(RETRY_AFTER_SECONDS))
+            .header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds))
             .body(new AuthError("Too many attempts. Please try again later."));
     }
 

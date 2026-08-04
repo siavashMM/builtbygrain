@@ -1,0 +1,22 @@
+services:
+  edge:
+    build:
+      context: ../..
+      dockerfile: infra/edge/Dockerfile
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN to the public storefront domain}
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-host.containers.internal:8080}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-192.0.2.0/24}
+      CLIENT_IP_HEADERS: ${CLIENT_IP_HEADERS:-X-Forwarded-For}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - builtbygrain-caddy-data:/data
+      - builtbygrain-caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  builtbygrain-caddy-data:
+  builtbygrain-caddy-config:

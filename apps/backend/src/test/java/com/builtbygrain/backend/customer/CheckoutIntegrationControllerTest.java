@@ -48,4 +48,14 @@ class CheckoutIntegrationControllerTest {
         assertThat(configured.findByRegistrationId("apple")).isNull();
         assertThat(registrations.findByRegistrationId("google")).isNull();
     }
+
+    @Test
+    void returnsSocialFailuresToTheFlowThatStartedAuthentication() {
+        assertThat(CheckoutIntegrationController.socialFailureUrl("/account/security"))
+            .isEqualTo("/account/sign-in?socialError=failed&returnUrl=%2Faccount%2Fsecurity");
+        assertThat(CheckoutIntegrationController.socialFailureUrl("/checkout/delivery"))
+            .isEqualTo("/checkout/account?socialError=failed&returnUrl=%2Fcheckout%2Fdelivery");
+        assertThat(CheckoutIntegrationController.socialFailureUrl("https://attacker.example"))
+            .isEqualTo("/account/sign-in?socialError=failed&returnUrl=%2Faccount");
+    }
 }

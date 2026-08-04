@@ -29,6 +29,7 @@ export class AccountComponent implements OnInit {
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal('');
   protected readonly successMessage = signal('');
+  protected readonly passwordSetupSent = signal(false);
   protected readonly editingAddressId = signal<number | null>(null);
   protected readonly showAddressForm = signal(false);
 
@@ -190,6 +191,21 @@ export class AccountComponent implements OnInit {
     this.accounts.changePassword(value.currentPassword, value.newPassword).subscribe({
       next: () => void this.router.navigate(['/account/sign-in'], { queryParams: { reason: 'password-changed' } }),
       error: error => this.fail(error, 'We could not change your password.')
+    });
+  }
+
+  protected requestPasswordSetup(): void {
+    const customer = this.customer();
+    if (!customer || customer.passwordSet || this.passwordSetupSent()) return;
+    this.resetMessages();
+    this.submitting.set(true);
+    this.accounts.forgotPassword(customer.email).subscribe({
+      next: () => {
+        this.submitting.set(false);
+        this.passwordSetupSent.set(true);
+        this.successMessage.set(`A secure password setup link was sent to ${customer.email}.`);
+      },
+      error: error => this.fail(error, 'We could not send the password setup email. Please try again.')
     });
   }
 

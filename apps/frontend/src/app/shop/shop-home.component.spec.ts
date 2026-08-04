@@ -58,15 +58,24 @@ describe('ShopHomeComponent', () => {
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
-    const image = element.querySelector<HTMLImageElement>('.home-hero > img')!;
+    const image = element.querySelector<HTMLImageElement>('.home-hero > .hero-image-main')!;
     expect(image.getAttribute('src')).toBe('/configured-hero.jpg');
     expect(image.getAttribute('alt')).toBe('Configured oak workshop');
     expect(image.getAttribute('width')).toBe('1600');
+    expect(image.classList).toContain('hero-image-custom');
+    expect(getComputedStyle(image).objectFit).toBe('cover');
+    expect(image.getBoundingClientRect().width).toBeCloseTo(element.querySelector<HTMLElement>('.home-hero')!.getBoundingClientRect().width, 0);
     expect(element.querySelector('.home-hero h1')?.textContent).toContain('A configured heading');
+
+    image.dispatchEvent(new Event('load'));
+    fixture.detectChanges();
+    expect(image.classList).toContain('loaded');
 
     image.dispatchEvent(new Event('error'));
     fixture.detectChanges();
-    expect(element.querySelector<HTMLImageElement>('.home-hero > img')?.getAttribute('src')).toBe('/fallback-current.jpg');
+    const fallbackImage = element.querySelector<HTMLImageElement>('.home-hero > .hero-image-main')!;
+    expect(fallbackImage.getAttribute('src')).toBe('/fallback-current.jpg');
+    expect(fallbackImage.classList).not.toContain('hero-image-custom');
     http.verify();
   });
 });

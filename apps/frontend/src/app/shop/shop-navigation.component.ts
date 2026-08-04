@@ -6,15 +6,22 @@ import { Subscription, filter } from 'rxjs';
 
 import { AccountService } from '../account/account.service';
 import { CartService } from '../cart/cart.service';
-import { ProductCard } from '../product.service';
+import { ProductCard, ProductService } from '../product.service';
 import { formatPrice } from './price.util';
 import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-catalog.service';
+
+type HeaderSearchCategory = Pick<ShopCategory, 'id' | 'name' | 'path'>;
 
 @Component({
   selector: 'app-shop-navigation',
   imports: [RouterLink, A11yModule],
   template: `
-    <header class="site-header" (mouseleave)="closeDesktopMenu(false)">
+    <header class="site-header"
+      [class.homepage-header]="isHomepage()"
+      [class.header-at-top]="isHomepage() && !headerScrolled()"
+      [class.header-scrolled]="isHomepage() && headerScrolled()"
+      [class.header-interacting]="activeDesktopGroupId() !== null || searchPanelOpen()"
+      (mouseleave)="closeDesktopMenu(false)">
       <div class="utility-bar">
         <p>Complimentary delivery on orders over €75 <span aria-hidden="true">•</span> 30-day returns</p>
         <nav aria-label="Utility navigation">
@@ -40,22 +47,63 @@ import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-
           <span>Built by Grain<small>Handcrafted wooden goods</small></span>
         </a>
 
-        <nav class="category-nav navigation-group-nav" aria-label="Shop navigation groups" [attr.aria-busy]="navigationLoading()">
-          @for (group of navigationGroups(); track group.id) {
-            <button type="button" class="navigation-group-trigger" [class.active]="activeDesktopGroupId() === group.id"
-              [attr.data-group-id]="group.id" aria-haspopup="true"
-              [attr.aria-expanded]="activeDesktopGroupId() === group.id"
-              [attr.aria-controls]="'mega-menu-' + group.id"
-              (mouseenter)="openDesktopMenu(group)" (focus)="openDesktopMenuFromFocus(group)" (click)="toggleDesktopMenu(group)">
-              {{ group.label }} <span aria-hidden="true">⌄</span>
+        <form class="header-search" role="search" (submit)="submitSearch($event)" (focusout)="onSearchFocusOut($event)">
+          <label class="sr-only" for="storefront-product-search">Search products and collections</label>
+          <button class="header-search-submit" type="submit" aria-label="Search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.2 4.2"/></svg>
+          </button>
+          <input #searchInput id="storefront-product-search" type="search" inputmode="search" autocomplete="off"
+            placeholder="Search handcrafted pieces..." [value]="searchQuery()"
+            [attr.aria-expanded]="searchPanelOpen()" aria-controls="storefront-search-results"
+            (input)="updateSearch($any($event.target).value)" (focus)="openSearch()">
+          @if (searchQuery()) {
+            <button class="header-search-clear" type="button" aria-label="Clear search" (click)="clearSearch(searchInput)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
             </button>
           }
-        </nav>
+
+          @if (searchPanelOpen()) {
+            <section id="storefront-search-results" class="header-search-panel" aria-label="Search suggestions">
+              <div class="search-panel-heading">
+                <p>{{ searchQuery().trim() ? 'Matching pieces' : 'Popular pieces' }}</p>
+                @if (!searchLoading()) {
+                  <span>{{ searchProductResults().length + searchCategoryResults().length }} suggestions</span>
+                }
+              </div>
+              @if (searchLoading()) {
+                <p class="search-panel-state" aria-live="polite">Loading suggestions…</p>
+              } @else if (searchProductResults().length || searchCategoryResults().length) {
+                @if (searchProductResults().length) {
+                  <div class="search-product-results">
+                    @for (product of searchProductResults(); track product.id) {
+                      <a [routerLink]="['/products', product.slug]" (click)="selectSearchResult()">
+                        <img [src]="product.primaryImageUrl || '/product-placeholder.svg'" alt="" width="64" height="64" loading="lazy" (error)="usePlaceholder($event)">
+                        <span><strong>{{ product.name }}</strong><small>{{ product.categoryName }} · {{ format(product.fromPriceCents, product.currency) }}</small></span>
+                        <b aria-hidden="true">→</b>
+                      </a>
+                    }
+                  </div>
+                }
+                @if (searchCategoryResults().length) {
+                  <div class="search-category-results">
+                    <p>Collections</p>
+                    @for (category of searchCategoryResults(); track category.id) {
+                      <a [routerLink]="category.path" (click)="selectSearchResult()">{{ category.name }} <span aria-hidden="true">→</span></a>
+                    }
+                  </div>
+                }
+              } @else {
+                <div class="search-panel-state" aria-live="polite">
+                  <strong>No matching pieces yet</strong>
+                  <span>Try a product name or one of our collections.</span>
+                  <a routerLink="/" fragment="featured-products" (click)="selectSearchResult()">Browse all products <span aria-hidden="true">→</span></a>
+                </div>
+              }
+            </section>
+          }
+        </form>
 
         <div class="nav-actions">
-          <a class="icon-button search-control" routerLink="/" fragment="featured-products" aria-label="Search products" title="Search products" (click)="closeDestinations()">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-          </a>
           <a class="icon-button account-button" routerLink="/account"
             [attr.aria-label]="accounts.customer() ? 'My account, signed in' : 'My account'"
             [title]="accounts.customer() ? 'My account — Signed in' : 'My account'" (click)="closeDestinations()">
@@ -76,6 +124,18 @@ import { PublicNavigationGroup, ShopCatalogService, ShopCategory } from './shop-
           </button>
         </div>
       </div>
+
+      <nav class="category-nav navigation-group-nav" aria-label="Shop navigation groups" [attr.aria-busy]="navigationLoading()">
+        @for (group of navigationGroups(); track group.id) {
+          <button type="button" class="navigation-group-trigger" [class.active]="activeDesktopGroupId() === group.id"
+            [attr.data-group-id]="group.id" aria-haspopup="true"
+            [attr.aria-expanded]="activeDesktopGroupId() === group.id"
+            [attr.aria-controls]="'mega-menu-' + group.id"
+            (mouseenter)="openDesktopMenu(group)" (focus)="openDesktopMenuFromFocus(group)" (click)="toggleDesktopMenu(group)">
+            <span>{{ group.label }}</span>
+          </button>
+        }
+      </nav>
 
       @if (activeDesktopGroup(); as group) {
         <section class="storefront-mega-menu" [id]="'mega-menu-' + group.id" [attr.aria-label]="group.label + ' navigation'">
@@ -233,6 +293,7 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
   protected readonly cart = inject(CartService);
   protected readonly accounts = inject(AccountService);
   private readonly catalog = inject(ShopCatalogService);
+  private readonly products = inject(ProductService);
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -244,6 +305,13 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
   protected readonly activeMobileGroupId = signal<number | null>(null);
   protected readonly menuOpen = signal(false);
   protected readonly cartDrawerOpen = signal(false);
+  protected readonly searchQuery = signal('');
+  protected readonly searchFocused = signal(false);
+  protected readonly searchLoading = signal(false);
+  protected readonly isHomepage = signal(false);
+  protected readonly headerScrolled = signal(false);
+  private readonly searchProductsLoaded = signal(false);
+  private readonly searchableProducts = signal<ProductCard[]>([]);
   private routeSubscription?: Subscription;
   private focusBeforeMobileMenu: HTMLElement | null = null;
   private focusBeforeCart: HTMLElement | null = null;
@@ -276,8 +344,39 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
   );
   protected readonly activeDesktopGroup = computed(() => this.navigationGroups().find(group => group.id === this.activeDesktopGroupId()) ?? null);
   protected readonly activeMobileGroup = computed(() => this.navigationGroups().find(group => group.id === this.activeMobileGroupId()) ?? null);
+  protected readonly searchPanelOpen = computed(() => this.searchFocused());
+  private readonly searchableCategories = computed<HeaderSearchCategory[]>(() => {
+    const categories = new Map<number, HeaderSearchCategory>();
+    for (const group of this.navigationGroups()) {
+      for (const category of group.categories) categories.set(category.id, category);
+    }
+    for (const category of this.fallbackCategories()) {
+      if (category.active) categories.set(category.id, category);
+    }
+    return [...categories.values()];
+  });
+  protected readonly searchProductResults = computed(() => {
+    const query = this.normalizedSearchQuery();
+    const products = this.searchableProducts();
+    if (!query) return products.slice(0, 4);
+    return products
+      .filter(product => `${product.name} ${product.categoryName}`.toLocaleLowerCase().includes(query))
+      .sort((left, right) => Number(right.name.toLocaleLowerCase().startsWith(query)) - Number(left.name.toLocaleLowerCase().startsWith(query)))
+      .slice(0, 4);
+  });
+  protected readonly searchCategoryResults = computed(() => {
+    const query = this.normalizedSearchQuery();
+    const categories = this.searchableCategories();
+    if (!query) return categories.slice(0, 4);
+    return categories
+      .filter(category => category.name.toLocaleLowerCase().includes(query))
+      .sort((left, right) => Number(right.name.toLocaleLowerCase().startsWith(query)) - Number(left.name.toLocaleLowerCase().startsWith(query)))
+      .slice(0, 4);
+  });
 
   ngOnInit(): void {
+    this.updateRouteState(this.router.url);
+    this.updateHeaderScrollState();
     this.accounts.restoreSession().subscribe();
     this.catalog.storefront().subscribe({
       next: configuration => { this.configuredGroups.set(configuration.navigationGroups ?? []); this.configurationLoaded.set(true); },
@@ -287,7 +386,11 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
       next: categories => { this.fallbackCategories.set(categories); this.categoriesLoaded.set(true); },
       error: () => { this.fallbackCategories.set([]); this.categoriesLoaded.set(true); }
     });
-    this.routeSubscription = this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(() => this.closeDestinations());
+    this.routeSubscription = this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(event => {
+      this.closeDestinations();
+      this.updateRouteState(event.urlAfterRedirects);
+      this.updateHeaderScrollState();
+    });
   }
 
   ngOnDestroy(): void {
@@ -297,6 +400,7 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
 
   protected openDesktopMenu(group: PublicNavigationGroup): void {
     if (this.menuOpen() || this.cartDrawerOpen()) return;
+    this.closeSearch();
     this.activeDesktopGroupId.set(group.id);
   }
 
@@ -330,6 +434,7 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
   protected openMenu(): void {
     this.closeCart(false);
     this.closeDesktopMenu(false);
+    this.closeSearch();
     this.focusBeforeMobileMenu = this.host.nativeElement.querySelector<HTMLElement>('.mobile-nav-toggle')
       ?? (this.document.activeElement instanceof HTMLElement ? this.document.activeElement : null);
     this.menuOpen.set(true);
@@ -351,8 +456,55 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
 
   protected openMobileGroup(group: PublicNavigationGroup): void { this.activeMobileGroupId.set(group.id); }
   protected backToGroups(): void { this.activeMobileGroupId.set(null); }
-  protected closeDestinations(): void { this.closeDesktopMenu(false); this.closeMenu(true); this.closeCart(false); }
+  protected closeDestinations(): void { this.closeDesktopMenu(false); this.closeMenu(true); this.closeCart(false); this.closeSearch(); }
   protected format(cents: number, currency: string): string { return formatPrice(cents, currency); }
+
+  protected openSearch(): void {
+    this.closeDesktopMenu(false);
+    this.searchFocused.set(true);
+    this.ensureSearchProducts();
+  }
+
+  protected updateSearch(value: string): void {
+    this.searchQuery.set(value);
+    this.searchFocused.set(true);
+    this.ensureSearchProducts();
+  }
+
+  protected clearSearch(input: HTMLInputElement): void {
+    this.searchQuery.set('');
+    this.searchFocused.set(true);
+    queueMicrotask(() => input.focus());
+  }
+
+  protected closeSearch(): void {
+    this.searchFocused.set(false);
+  }
+
+  protected selectSearchResult(): void {
+    this.closeSearch();
+  }
+
+  protected submitSearch(event: Event): void {
+    event.preventDefault();
+    if (!this.searchQuery().trim()) return;
+    const product = this.searchProductResults()[0];
+    if (product) {
+      this.selectSearchResult();
+      void this.router.navigate(['/products', product.slug]);
+      return;
+    }
+    const category = this.searchCategoryResults()[0];
+    if (category) {
+      this.selectSearchResult();
+      void this.router.navigateByUrl(category.path);
+    }
+  }
+
+  protected onSearchFocusOut(event: FocusEvent): void {
+    if (event.relatedTarget instanceof Node && (event.currentTarget as HTMLElement).contains(event.relatedTarget)) return;
+    this.closeSearch();
+  }
 
   protected openCart(): void {
     if (this.document.defaultView?.matchMedia('(max-width: 760px)').matches) {
@@ -361,6 +513,7 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
     }
     this.closeDesktopMenu(false);
     this.closeMenu(false);
+    this.closeSearch();
     this.focusBeforeCart = this.document.activeElement instanceof HTMLElement
       ? this.document.activeElement
       : this.host.nativeElement.querySelector<HTMLElement>('.bag-button');
@@ -387,10 +540,45 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
 
   private unlockPage(): void { this.document.body.classList.remove('shop-menu-open'); }
 
+  private normalizedSearchQuery(): string { return this.searchQuery().trim().toLocaleLowerCase(); }
+
+  private updateRouteState(url: string): void {
+    const path = url.split(/[?#]/, 1)[0].replace(/\/+$/, '') || '/';
+    this.isHomepage.set(path === '/');
+  }
+
+  private updateHeaderScrollState(): void {
+    const scrolled = this.isHomepage() && (this.document.defaultView?.scrollY ?? 0) > 56;
+    if (this.headerScrolled() === scrolled) return;
+    this.headerScrolled.set(scrolled);
+    if (scrolled) {
+      this.closeDesktopMenu(false);
+      this.closeSearch();
+    }
+  }
+
+  private ensureSearchProducts(): void {
+    if (this.searchProductsLoaded() || this.searchLoading()) return;
+    this.searchLoading.set(true);
+    this.products.getProducts().subscribe({
+      next: products => {
+        this.searchableProducts.set(products);
+        this.searchProductsLoaded.set(true);
+        this.searchLoading.set(false);
+      },
+      error: () => {
+        this.searchableProducts.set([]);
+        this.searchProductsLoaded.set(true);
+        this.searchLoading.set(false);
+      }
+    });
+  }
+
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
     if (this.cartDrawerOpen()) this.closeCart(true);
     else if (this.menuOpen()) this.closeMenu(true);
+    else if (this.searchFocused()) this.closeSearch();
     else this.closeDesktopMenu(true);
   }
 
@@ -404,5 +592,10 @@ export class ShopNavigationComponent implements OnInit, OnDestroy {
     if (this.activeDesktopGroupId() != null && event.relatedTarget instanceof Node && !this.host.nativeElement.contains(event.relatedTarget)) {
       this.closeDesktopMenu(false);
     }
+  }
+
+  @HostListener('window:scroll')
+  protected onWindowScroll(): void {
+    this.updateHeaderScrollState();
   }
 }

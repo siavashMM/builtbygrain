@@ -24,6 +24,8 @@ GOOGLE_OAUTH_CLIENT_SECRET=...
 
 The frontend starts the flow at `/api/account/auth/social/google`; Spring Security performs the authorization-code exchange, validates the OIDC ID token, and stores only the stable provider subject. OAuth tokens are not written to the customer table or browser storage.
 
+Configured social providers are offered on both checkout onboarding and the regular account sign-in page. A social-only customer signs back in with the same provider and does not need a local password. Successful sign-in returns to the originally requested local page; a failed provider flow returns to the sign-in surface that started it.
+
 ## Sign in with Apple
 
 Apple web login requires a paid Apple Developer account and production HTTPS:

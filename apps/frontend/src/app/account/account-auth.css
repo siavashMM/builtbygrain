@@ -9,6 +9,15 @@ app-account-auth { display: block; color: var(--ink); background: #f7f6f1; }
 .auth-brand img { width: 42px; height: 42px; object-fit: contain; }
 .auth-card h1 { margin: 6px 0 12px; font-family: Georgia, serif; font-size: clamp(2.25rem, 4vw, 3.8rem); font-weight: 500; line-height: 1; }
 .auth-intro { margin: 0 0 30px; color: var(--muted); line-height: 1.65; }
+.auth-social-buttons { display: grid; gap: 12px; margin-bottom: 24px; }
+.auth-social-button { min-height: 50px; display: flex; align-items: center; justify-content: center; gap: 12px; box-sizing: border-box; padding: 0 18px; border: 1px solid #747775; border-radius: 10px; color: #1f1f1f; background: #fff; font-size: .84rem; font-weight: 700; text-decoration: none; }
+.auth-social-button:hover { background: #f7f8f7; }
+.auth-social-button:focus-visible { outline: 3px solid rgba(35,83,65,.2); outline-offset: 2px; }
+.auth-social-button svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.auth-social-button.apple { color: #fff; border-color: #050505; background: #050505; }
+.auth-social-button.apple:hover { background: #252525; }
+.auth-divider { display: flex; align-items: center; gap: 14px; margin: 0 0 24px; color: var(--muted); font-size: .72rem; font-weight: 650; }
+.auth-divider::before, .auth-divider::after { height: 1px; flex: 1; content: ''; background: #dce1dd; }
 .eyebrow { margin: 0; color: var(--forest); font-size: .72rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
 .auth-card form { display: grid; gap: 18px; }
 .auth-card label { display: grid; gap: 8px; font-size: .78rem; font-weight: 750; }

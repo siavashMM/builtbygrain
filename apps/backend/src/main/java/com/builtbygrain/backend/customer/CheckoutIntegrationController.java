@@ -1,6 +1,8 @@
 package com.builtbygrain.backend.customer;
 
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
 
@@ -59,6 +61,15 @@ public class CheckoutIntegrationController {
         return ResponseEntity.status(302)
             .header(HttpHeaders.LOCATION, URI.create("/oauth2/authorization/" + normalized).toString())
             .build();
+    }
+
+    static String socialFailureUrl(Object requestedReturnUrl) {
+        String returnUrl = CustomerAuthController.safeReturnUrl(
+            requestedReturnUrl instanceof String value ? value : "/account"
+        );
+        String source = returnUrl.startsWith("/checkout/") ? "/checkout/account" : "/account/sign-in";
+        return source + "?socialError=failed&returnUrl="
+            + URLEncoder.encode(returnUrl, StandardCharsets.UTF_8);
     }
 
     public record CheckoutConfig(

@@ -1,128 +1,67 @@
 package com.builtbygrain.backend.security;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.sql.Timestamp;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.HexFormat;
-import java.util.Locale;
-import java.util.concurrent.atomic.AtomicInteger;
+import static com.builtbygrain.backend.security.RateLimitService.Rule;
 
-import com.builtbygrain.backend.admin.AdminAccountRepository;
-import com.builtbygrain.backend.customer.CustomerRepository;
-import org.springframework.jdbc.core.JdbcTemplate;
+import java.util.List;
+import java.util.Locale;
+
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LoginThrottleService {
 
-    static final Duration WINDOW = Duration.ofMinutes(15);
-    static final Duration RETENTION = Duration.ofHours(24);
-    static final int ACCOUNT_IP_LIMIT = 5;
-    static final int IP_LIMIT = 20;
+    private static final String CUSTOMER_ACCOUNT_POLICY = "CUSTOMER_LOGIN_ACCOUNT";
+    private static final String CUSTOMER_IP_POLICY = "CUSTOMER_LOGIN_IP";
+    private static final String ADMIN_ACCOUNT_POLICY = "ADMIN_LOGIN_ACCOUNT";
+    private static final String ADMIN_IP_POLICY = "ADMIN_LOGIN_IP";
 
-    private final JdbcTemplate jdbc;
-    private final AdminAccountRepository adminAccounts;
-    private final CustomerRepository customers;
-    private final AtomicInteger cleanupCounter = new AtomicInteger();
+    private final RateLimitService rateLimits;
+    private final RateLimitProperties properties;
 
-    public LoginThrottleService(
-        JdbcTemplate jdbc,
-        AdminAccountRepository adminAccounts,
-        CustomerRepository customers
+    public LoginThrottleService(RateLimitService rateLimits, RateLimitProperties properties) {
+        this.rateLimits = rateLimits;
+        this.properties = properties;
+    }
+
+    public RateLimitService.Decision reserveAttempt(
+        Audience audience,
+        String username,
+        String remoteAddress
     ) {
-        this.jdbc = jdbc;
-        this.adminAccounts = adminAccounts;
-        this.customers = customers;
+        return rateLimits.consume(rules(audience, username, remoteAddress));
     }
 
-    @Transactional(readOnly = true)
-    public boolean isBlocked(String username, String remoteAddress) {
-        Instant since = Instant.now().minus(WINDOW);
-        if (count("IP", hash(normalizeAddress(remoteAddress)), since) >= IP_LIMIT) {
-            return true;
-        }
-        return isKnownAccount(username)
-            && count("ACCOUNT_IP", accountIpHash(username, remoteAddress), since) >= ACCOUNT_IP_LIMIT;
+    public void recordSuccess(Audience audience, String username) {
+        rateLimits.reset(accountPolicy(audience), normalizeAccount(username));
     }
 
-    @Transactional
-    public boolean recordFailure(String username, String remoteAddress) {
-        maybeCleanup();
-        Instant now = Instant.now();
-        insert("IP", hash(normalizeAddress(remoteAddress)), now);
-        if (isKnownAccount(username)) {
-            insert("ACCOUNT_IP", accountIpHash(username, remoteAddress), now);
-        }
-        return isBlocked(username, remoteAddress);
-    }
-
-    @Transactional
-    public void recordSuccess(String username, String remoteAddress) {
-        jdbc.update(
-            "DELETE FROM admin_login_attempts WHERE (scope_type=? AND scope_hash=?) OR (scope_type=? AND scope_hash=?)",
-            "IP", hash(normalizeAddress(remoteAddress)),
-            "ACCOUNT_IP", accountIpHash(username, remoteAddress)
-        );
-    }
-
-    private boolean isKnownAccount(String username) {
-        if (username == null) {
-            return false;
-        }
-        String normalized = username.trim();
-        return adminAccounts.findByUsernameIgnoreCase(normalized).isPresent()
-            || customers.existsByNormalizedEmail(normalized.toLowerCase(Locale.ROOT));
-    }
-
-    private long count(String scopeType, String scopeHash, Instant since) {
-        Long result = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM admin_login_attempts WHERE scope_type=? AND scope_hash=? AND failed_at>=?",
-            Long.class,
-            scopeType,
-            scopeHash,
-            Timestamp.from(since)
-        );
-        return result == null ? 0 : result;
-    }
-
-    private void insert(String scopeType, String scopeHash, Instant now) {
-        jdbc.update(
-            "INSERT INTO admin_login_attempts(scope_type,scope_hash,failed_at) VALUES(?,?,?)",
-            scopeType,
-            scopeHash,
-            Timestamp.from(now)
-        );
-    }
-
-    private void maybeCleanup() {
-        if (cleanupCounter.incrementAndGet() % 100 == 0) {
-            jdbc.update(
-                "DELETE FROM admin_login_attempts WHERE failed_at<?",
-                Timestamp.from(Instant.now().minus(RETENTION))
+    private List<Rule> rules(Audience audience, String username, String remoteAddress) {
+        if (audience == Audience.ADMIN) {
+            return List.of(
+                new Rule(ADMIN_ACCOUNT_POLICY, normalizeAccount(username), properties.getAdminLoginAccount()),
+                new Rule(ADMIN_IP_POLICY, normalizeAddress(remoteAddress), properties.getAdminLoginIp())
             );
         }
+        return List.of(
+            new Rule(CUSTOMER_ACCOUNT_POLICY, normalizeAccount(username), properties.getCustomerLoginAccount()),
+            new Rule(CUSTOMER_IP_POLICY, normalizeAddress(remoteAddress), properties.getCustomerLoginIp())
+        );
     }
 
-    private String accountIpHash(String username, String remoteAddress) {
-        String account = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
-        return hash(account + "\u0000" + normalizeAddress(remoteAddress));
+    private String accountPolicy(Audience audience) {
+        return audience == Audience.ADMIN ? ADMIN_ACCOUNT_POLICY : CUSTOMER_ACCOUNT_POLICY;
+    }
+
+    private String normalizeAccount(String username) {
+        return username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
     }
 
     private String normalizeAddress(String remoteAddress) {
-        return remoteAddress == null || remoteAddress.isBlank() ? "unknown" : remoteAddress.trim();
+        return ClientAddress.normalize(remoteAddress);
     }
 
-    private String hash(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                .digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+    public enum Audience {
+        ADMIN,
+        CUSTOMER
     }
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ProductCard, ProductService } from '../product.service';
 import { ProductCardComponent } from './product-card.component';
@@ -19,6 +19,7 @@ export class ShopHomeComponent implements OnInit {
   private static readonly DEFAULT_HERO_ALT = 'Handcrafted wooden shelf in natural oak';
   private readonly productService = inject(ProductService);
   private readonly catalog = inject(ShopCatalogService);
+  @ViewChild('featuredProductRail') private featuredProductRail?: ElementRef<HTMLElement>;
 
   protected readonly productState = signal<ProductState>('loading');
   protected readonly allProducts = signal<ProductCard[]>([]);
@@ -44,7 +45,11 @@ export class ShopHomeComponent implements OnInit {
   ngOnInit(): void {
     this.catalog.categories().subscribe({ next: categories => this.categories.set(categories), error: () => this.categories.set([]) });
     this.catalog.storefront().subscribe({
-      next: configuration => { this.storefrontConfiguration.set(configuration); this.heroImageFailed.set(false); this.heroImageLoaded.set(false); },
+      next: configuration => {
+        this.storefrontConfiguration.set(configuration);
+        this.heroImageFailed.set(false);
+        this.heroImageLoaded.set(false);
+      },
       error: () => this.storefrontConfiguration.set(null)
     });
     this.loadProducts();
@@ -57,12 +62,27 @@ export class ShopHomeComponent implements OnInit {
     }
   }
 
+  protected handleHeroLoad(): void {
+    this.heroImageLoaded.set(true);
+  }
+
   protected loadProducts(): void {
     this.productState.set('loading');
     this.productService.getProducts().subscribe({
       next: products => { this.allProducts.set(products); this.productState.set('ready'); },
       error: () => { this.allProducts.set([]); this.productState.set('error'); }
     });
+  }
+
+  protected scrollFeaturedProducts(direction: 'previous' | 'next'): void {
+    const rail = this.featuredProductRail?.nativeElement;
+    if (!rail) return;
+
+    const firstItem = rail.querySelector<HTMLElement>('app-product-card, .product-skeleton');
+    const itemWidth = firstItem?.getBoundingClientRect().width ?? rail.clientWidth * 0.8;
+    const styles = window.getComputedStyle(rail);
+    const gap = Number.parseFloat(styles.columnGap || styles.gap || '0') || 0;
+    rail.scrollBy({ left: (itemWidth + gap) * (direction === 'next' ? 1 : -1), behavior: 'smooth' });
   }
 
   protected imageForCategory(category: ShopCategory, index: number): string {

@@ -1,9 +1,9 @@
 package com.builtbygrain.backend.admin;
 
 import java.security.Principal;
-import java.time.Duration;
-
 import com.builtbygrain.backend.security.LoginThrottleService;
+import com.builtbygrain.backend.security.LoginThrottleService.Audience;
+import com.builtbygrain.backend.security.RateLimitService.Decision;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -32,8 +32,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/auth")
 public class AdminAuthController {
-
-    private static final Duration THROTTLE_DURATION = Duration.ofMinutes(15);
 
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContexts;
@@ -70,8 +68,9 @@ public class AdminAuthController {
         HttpServletResponse response
     ) {
         String address = request.getRemoteAddr();
-        if (throttle.isBlocked(credentials.username(), address)) {
-            return throttled();
+        Decision rateLimit = throttle.reserveAttempt(Audience.ADMIN, credentials.username(), address);
+        if (!rateLimit.allowed()) {
+            return throttled(rateLimit.retryAfterSeconds());
         }
 
         try {
@@ -81,7 +80,6 @@ public class AdminAuthController {
                     credentials.password()
                 )
             );
-            throttle.recordSuccess(authentication.getName(), address);
 
             HttpSession previousSession = request.getSession(false);
             if (previousSession != null) {
@@ -93,12 +91,10 @@ public class AdminAuthController {
             SecurityContextHolder.setContext(context);
             request.getSession(true);
             securityContexts.saveContext(context, request, response);
+            throttle.recordSuccess(Audience.ADMIN, authentication.getName());
 
             return ResponseEntity.ok(new AdminLoginResponse(authentication.getName(), true));
         } catch (AuthenticationException exception) {
-            if (throttle.recordFailure(credentials.username(), address)) {
-                return throttled();
-            }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new AuthError("Unauthorized"));
         }
@@ -135,9 +131,9 @@ public class AdminAuthController {
         return ResponseEntity.noContent().build();
     }
 
-    private ResponseEntity<AuthError> throttled() {
+    private ResponseEntity<AuthError> throttled(long retryAfterSeconds) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-            .header(HttpHeaders.RETRY_AFTER, Long.toString(THROTTLE_DURATION.toSeconds()))
+            .header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds))
             .body(new AuthError("Too many login attempts"));
     }
 

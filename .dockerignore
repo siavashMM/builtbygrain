@@ -1,0 +1,11 @@
+.git
+.idea
+.vscode
+.env
+.env.*
+**/node_modules
+**/dist
+**/target
+**/.angular
+**/coverage
+design-system

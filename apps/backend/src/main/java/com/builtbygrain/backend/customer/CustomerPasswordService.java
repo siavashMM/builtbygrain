@@ -69,7 +69,7 @@ public class CustomerPasswordService {
             throw invalidResetToken();
         }
         Customer customer = token.getCustomer();
-        if (passwordEncoder.matches(newPassword, customer.getPasswordHash())) {
+        if (customer.getPasswordHash() != null && passwordEncoder.matches(newPassword, customer.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "New password must be different from the current password");
         }
@@ -81,6 +81,10 @@ public class CustomerPasswordService {
 
     @Transactional
     public void changePassword(Customer customer, String currentPassword, String newPassword) {
+        if (customer.getPasswordHash() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "No password is set for this account. Request a password setup link instead");
+        }
         if (!passwordEncoder.matches(currentPassword, customer.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect");
         }

@@ -46,6 +46,7 @@ public final class CustomerDtos {
         String phone,
         String locale,
         boolean emailVerified,
+        boolean passwordSet,
         String accountStatus,
         LocalDateTime createdAt
     ) {
@@ -58,6 +59,7 @@ public final class CustomerDtos {
                 customer.getPhone(),
                 customer.getLocale(),
                 customer.getEmailVerifiedAt() != null,
+                customer.getPasswordHash() != null,
                 customer.getAccountStatus().name(),
                 customer.getCreatedAt()
             );

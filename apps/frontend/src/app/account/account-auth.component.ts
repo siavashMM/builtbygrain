@@ -1,7 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ViewEncapsulation, inject, signal } from '@angular/core';
+import { Component, OnInit, ViewEncapsulation, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { catchError, of } from 'rxjs';
 import { ShopNavigationComponent } from '../shop/shop-navigation.component';
 import { AccountService } from './account.service';
 
@@ -14,7 +15,7 @@ type AuthMode = 'sign-in' | 'register' | 'forgot-password' | 'reset-password';
   styleUrl: './account-auth.css',
   encapsulation: ViewEncapsulation.None
 })
-export class AccountAuthComponent {
+export class AccountAuthComponent implements OnInit {
   private readonly accounts = inject(AccountService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -22,7 +23,12 @@ export class AccountAuthComponent {
 
   protected readonly mode = this.route.snapshot.data['mode'] as AuthMode;
   protected readonly submitting = signal(false);
-  protected readonly errorMessage = signal('');
+  protected readonly errorMessage = signal(
+    this.route.snapshot.queryParamMap.has('socialError')
+      ? 'Social sign-in could not be completed. Please try the same provider again.'
+      : ''
+  );
+  protected readonly socialProviders = signal({ google: false, apple: false });
   protected readonly successMessage = signal(
     this.route.snapshot.queryParamMap.get('reason') === 'password-changed'
       ? 'Your password was changed. Sign in again with your new password.'
@@ -50,6 +56,13 @@ export class AccountAuthComponent {
     newPassword: ['', [Validators.required, Validators.minLength(12), Validators.maxLength(128)]],
     confirmPassword: ['', Validators.required]
   });
+
+  ngOnInit(): void {
+    if (this.mode !== 'sign-in') return;
+    this.accounts.availableSocialProviders().pipe(catchError(() => of(null))).subscribe(providers => {
+      if (providers) this.socialProviders.set(providers);
+    });
+  }
 
   protected submit(): void {
     this.errorMessage.set('');
@@ -128,6 +141,11 @@ export class AccountAuthComponent {
 
   protected returnUrl(): string | null {
     return this.route.snapshot.queryParamMap.get('returnUrl');
+  }
+
+  protected socialUrl(provider: 'google' | 'apple'): string {
+    const destination = this.returnUrl() || '/account';
+    return `/api/account/auth/social/${provider}?returnUrl=${encodeURIComponent(destination)}`;
   }
 
   private invalid(form: typeof this.signInForm | typeof this.registerForm | typeof this.emailForm | typeof this.resetForm):

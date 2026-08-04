@@ -49,7 +49,7 @@ public class CustomerSocialAuthenticationSuccessHandler implements Authenticatio
                 requestedReturnUrl instanceof String value ? value : "/checkout/delivery"
             ));
         } catch (RuntimeException exception) {
-            response.sendRedirect("/checkout/account?socialError=account");
+            response.sendRedirect(CheckoutIntegrationController.socialFailureUrl(requestedReturnUrl));
         }
     }
 }
