@@ -5,14 +5,21 @@ import { catchError, of } from 'rxjs';
 import { AccountService, AddressInput, CustomerAddress } from '../account/account.service';
 import { CartService } from '../cart/cart.service';
 import { ShopNavigationComponent } from '../shop/shop-navigation.component';
-import { AddressAutocompleteService, SuggestedAddress } from './address-autocomplete.service';
+import { AddressAutocompleteComponent } from './address-autocomplete.component';
+import { SuggestedAddress } from './address-autocomplete.service';
 import { CheckoutService } from './checkout.service';
 import { CheckoutStepperComponent } from './checkout-stepper.component';
 import { CheckoutSummaryComponent } from './checkout-summary.component';
 
 @Component({
   selector: 'app-checkout-delivery',
-  imports: [ReactiveFormsModule, ShopNavigationComponent, CheckoutStepperComponent, CheckoutSummaryComponent],
+  imports: [
+    ReactiveFormsModule,
+    ShopNavigationComponent,
+    CheckoutStepperComponent,
+    CheckoutSummaryComponent,
+    AddressAutocompleteComponent
+  ],
   templateUrl: './checkout-delivery.component.html',
   styleUrl: './checkout.css',
   encapsulation: ViewEncapsulation.None
@@ -20,7 +27,6 @@ import { CheckoutSummaryComponent } from './checkout-summary.component';
 export class CheckoutDeliveryComponent implements OnInit {
   private readonly accounts = inject(AccountService);
   private readonly checkout = inject(CheckoutService);
-  private readonly autocomplete = inject(AddressAutocompleteService);
   private readonly cart = inject(CartService);
   private readonly forms = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
@@ -32,7 +38,6 @@ export class CheckoutDeliveryComponent implements OnInit {
   protected readonly selectedAddressId = signal<number | 'new'>('new');
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal('');
-  protected readonly autocompleteStatus = signal<'hidden' | 'loading' | 'ready' | 'unavailable'>('hidden');
 
   protected readonly addressForm = this.forms.nonNullable.group({
     recipientName: ['', [Validators.required, Validators.maxLength(200)]],
@@ -80,7 +85,6 @@ export class CheckoutDeliveryComponent implements OnInit {
   protected chooseAddress(id: number | 'new'): void {
     this.selectedAddressId.set(id);
     this.errorMessage.set('');
-    if (id === 'new') queueMicrotask(() => this.mountAutocomplete());
   }
 
   protected continue(): void {
@@ -124,26 +128,11 @@ export class CheckoutDeliveryComponent implements OnInit {
 
   private finishLoading(): void {
     this.loading.set(false);
-    if (this.selectedAddressId() === 'new') queueMicrotask(() => this.mountAutocomplete());
   }
 
-  private mountAutocomplete(): void {
-    const container = document.querySelector<HTMLElement>('#checkout-address-autocomplete');
-    if (!container || container.childElementCount > 0) return;
-    this.checkout.config().pipe(catchError(() => of(null))).subscribe(config => {
-      if (!config?.addressAutocompleteEnabled || !config.googleMapsBrowserKey) {
-        this.autocompleteStatus.set('unavailable');
-        return;
-      }
-      this.autocompleteStatus.set('loading');
-      this.autocomplete.mount(container, config.googleMapsBrowserKey, address => this.applySuggestion(address))
-        .then(() => this.autocompleteStatus.set('ready'))
-        .catch(() => this.autocompleteStatus.set('unavailable'));
-    });
-  }
-
-  private applySuggestion(address: SuggestedAddress): void {
+  protected applySuggestion(address: SuggestedAddress): void {
     this.addressForm.patchValue(address);
-    queueMicrotask(() => document.querySelector<HTMLInputElement>('#delivery-phone')?.focus());
+    const nextFieldId = address.houseNumber ? 'delivery-phone' : 'checkout-house-number';
+    queueMicrotask(() => document.querySelector<HTMLInputElement>(`#${nextFieldId}`)?.focus());
   }
 }

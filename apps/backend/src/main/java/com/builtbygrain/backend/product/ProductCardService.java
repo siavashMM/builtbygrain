@@ -13,8 +13,12 @@ import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.builtbygrain.backend.performance.PublicCacheNames;
+import com.builtbygrain.backend.performance.ReadFromReplica;
 
 @Service
 public class ProductCardService {
@@ -58,17 +62,21 @@ public class ProductCardService {
     }
 
     @Transactional(readOnly = true)
+    @ReadFromReplica
+    @Cacheable(cacheNames = PublicCacheNames.PRODUCT_CARDS, key = "'all'", sync = true)
     public List<ProductCardDto> activeCards() {
         return loadCards("", List.of());
     }
 
     @Transactional(readOnly = true)
+    @ReadFromReplica
     public List<ProductCardDto> activeCardsForCategoryIds(Set<Long> categoryIds) {
         if (categoryIds.isEmpty()) return List.of();
         return loadCards("AND p.category_id IN (" + placeholders(categoryIds.size()) + ")", categoryIds);
     }
 
     @Transactional(readOnly = true)
+    @ReadFromReplica
     public List<ProductCardDto> activeCardsForIds(Set<Long> productIds) {
         if (productIds.isEmpty()) return List.of();
         return loadCards("AND p.id IN (" + placeholders(productIds.size()) + ")", productIds);

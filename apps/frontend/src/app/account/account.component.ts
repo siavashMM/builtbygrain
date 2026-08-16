@@ -4,13 +4,15 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { ShopNavigationComponent } from '../shop/shop-navigation.component';
+import { AddressAutocompleteComponent } from '../checkout/address-autocomplete.component';
+import { SuggestedAddress } from '../checkout/address-autocomplete.service';
 import { AccountService, AddressInput, CustomerAddress, CustomerProfile } from './account.service';
 
 type AccountView = 'overview' | 'details' | 'addresses' | 'security' | 'orders' | 'returns' | 'claims';
 
 @Component({
   selector: 'app-account',
-  imports: [ReactiveFormsModule, RouterLink, ShopNavigationComponent],
+  imports: [ReactiveFormsModule, RouterLink, ShopNavigationComponent, AddressAutocompleteComponent],
   templateUrl: './account.component.html',
   styleUrl: './account.css',
   encapsulation: ViewEncapsulation.None
@@ -127,6 +129,12 @@ export class AccountComponent implements OnInit {
     this.showAddressForm.set(false);
     this.editingAddressId.set(null);
     this.addressForm.reset();
+  }
+
+  protected applyAddressSuggestion(address: SuggestedAddress): void {
+    this.addressForm.patchValue(address);
+    const nextFieldId = address.houseNumber ? 'account-address-line-2' : 'account-house-number';
+    queueMicrotask(() => document.querySelector<HTMLInputElement>(`#${nextFieldId}`)?.focus());
   }
 
   protected saveAddress(): void {

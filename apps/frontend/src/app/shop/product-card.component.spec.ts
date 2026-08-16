@@ -21,9 +21,10 @@ describe('ProductCardComponent', () => {
 
     expect((fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>('.listing-image-primary')?.src).toContain('/walnut.jpg');
     expect((fixture.nativeElement as HTMLElement).querySelector('.price')?.textContent).toContain('From');
-    expect((fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.add-button')?.getAttribute('href')).toBe('/products/oak-shelf');
     expect((fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.product-category-link')?.getAttribute('href')).toBe('/category/shelves');
-    expect((fixture.nativeElement as HTMLElement).querySelector('.add-button')?.textContent).toContain('Choose options');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.add-button')).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.listing-image-link')?.getAttribute('href')).toBe('/products/oak-shelf');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Choose options');
 
     const image = (fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>('.listing-image-primary')!;
     image.dispatchEvent(new Event('error'));

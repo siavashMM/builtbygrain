@@ -34,7 +34,6 @@ import { formatPrice } from './price.util';
         }
         <div class="listing-product-footer">
           <p class="price"><span>From</span> {{ formatFromPrice() }}</p>
-          <a class="add-button" [routerLink]="['/products', product.slug]">Choose options</a>
         </div>
       </div>
     </article>

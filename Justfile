@@ -24,6 +24,10 @@ frontend-test:
 db-up:
     podman compose -f infra/podman/compose.yaml up -d postgres
 
+# Start the disposable Redis cache used by public catalog reads.
+cache-up:
+    podman compose -f infra/podman/compose.yaml up -d redis
+
 # Start the loopback-only S3-compatible local object store.
 object-store-up:
     podman compose -f infra/podman/compose.yaml up -d minio
@@ -44,9 +48,13 @@ db-down:
 db-logs:
     podman compose -f infra/podman/compose.yaml logs -f postgres
 
+# Follow logs for the local Redis cache.
+cache-logs:
+    podman compose -f infra/podman/compose.yaml logs -f redis
+
 # Start the database, then print how to run the app processes separately.
-dev: db-up object-store-up mail-up
-    @echo "Database is starting or already running."
+dev: db-up cache-up object-store-up mail-up
+    @echo "Database, cache, object storage, and mail are starting or already running."
     @echo "Open one terminal and run: just backend"
     @echo "Open another terminal and run: just frontend"
 

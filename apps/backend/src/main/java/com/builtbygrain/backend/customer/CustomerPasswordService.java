@@ -24,6 +24,7 @@ public class CustomerPasswordService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetMailService mail;
     private final CustomerSessionService sessions;
+    private final PasswordResetStore passwordResetStore;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Duration resetLifetime;
 
@@ -33,6 +34,7 @@ public class CustomerPasswordService {
         PasswordEncoder passwordEncoder,
         PasswordResetMailService mail,
         CustomerSessionService sessions,
+        PasswordResetStore passwordResetStore,
         @Value("${app.customer-auth.password-reset-lifetime:30m}") Duration resetLifetime
     ) {
         this.customers = customers;
@@ -40,6 +42,7 @@ public class CustomerPasswordService {
         this.passwordEncoder = passwordEncoder;
         this.mail = mail;
         this.sessions = sessions;
+        this.passwordResetStore = passwordResetStore;
         this.resetLifetime = resetLifetime;
     }
 
@@ -62,21 +65,28 @@ public class CustomerPasswordService {
 
     @Transactional
     public void resetPassword(String rawToken, String newPassword) {
-        PasswordResetToken token = resetTokens.findByTokenHash(hash(rawToken))
+        String tokenHash = hash(rawToken);
+        Long customerId = passwordResetStore.findTokenCustomerId(tokenHash)
             .orElseThrow(CustomerPasswordService::invalidResetToken);
-        LocalDateTime now = LocalDateTime.now();
-        if (!token.canUseAt(now)) {
+        PasswordResetStore.CustomerPasswordState customer = passwordResetStore
+            .lockCustomerPassword(customerId)
+            .orElseThrow(CustomerPasswordService::invalidResetToken);
+        if (!passwordResetStore.lockTokenForClaim(tokenHash)
+            || !passwordResetStore.claimUsableToken(tokenHash)) {
             throw invalidResetToken();
         }
-        Customer customer = token.getCustomer();
-        if (customer.getPasswordHash() != null && passwordEncoder.matches(newPassword, customer.getPasswordHash())) {
+        if (customer.passwordHash() != null && passwordEncoder.matches(newPassword, customer.passwordHash())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "New password must be different from the current password");
         }
-        customer.changePasswordHash(passwordEncoder.encode(newPassword));
-        token.markUsed(now);
-        resetTokens.invalidateUnusedForCustomer(customer.getId(), now);
-        sessions.invalidateAll(customer.getNormalizedEmail());
+        String replacementHash = passwordEncoder.encode(newPassword);
+        if (!passwordResetStore.updatePasswordIfCurrent(
+            customer.id(), customer.passwordHash(), customer.version(), replacementHash
+        )) {
+            throw invalidResetToken();
+        }
+        passwordResetStore.invalidateUnusedTokens(customer.id());
+        sessions.invalidateAll(customer.normalizedEmail());
     }
 
     @Transactional
@@ -92,9 +102,14 @@ public class CustomerPasswordService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "New password must be different from the current password");
         }
-        customer.changePasswordHash(passwordEncoder.encode(newPassword));
-        customers.save(customer);
-        resetTokens.invalidateUnusedForCustomer(customer.getId(), LocalDateTime.now());
+        String replacementHash = passwordEncoder.encode(newPassword);
+        if (!passwordResetStore.updatePasswordIfCurrent(
+            customer.getId(), customer.getPasswordHash(), customer.getVersion(), replacementHash
+        )) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Password was changed by another request. Please try again");
+        }
+        passwordResetStore.invalidateUnusedTokens(customer.getId());
         sessions.invalidateAll(customer.getNormalizedEmail());
     }
 

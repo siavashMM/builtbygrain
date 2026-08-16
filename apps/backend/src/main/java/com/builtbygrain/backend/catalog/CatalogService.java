@@ -4,14 +4,28 @@ import static com.builtbygrain.backend.catalog.CatalogDtos.*;
 import static com.builtbygrain.backend.catalog.CatalogAdminDtos.*;
 import java.util.*;
 import java.text.Normalizer;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import com.builtbygrain.backend.product.*;
+import com.builtbygrain.backend.performance.PublicCacheNames;
+import com.builtbygrain.backend.performance.ReadFromReplica;
 
 @Service
+@CacheEvict(
+    cacheNames = {
+        PublicCacheNames.PRODUCT_CARDS,
+        PublicCacheNames.PRODUCT_DETAILS,
+        PublicCacheNames.CATALOG,
+        PublicCacheNames.STOREFRONT
+    },
+    allEntries = true,
+    condition = "@publicCacheInvalidationPolicy.isMutation(#root.method)"
+)
 public class CatalogService {
     private final CategoryRepository categories;
     private final ProductRepository products;
@@ -64,6 +78,8 @@ public class CatalogService {
         }).sorted(Comparator.comparing(CategoryOption::path, String.CASE_INSENSITIVE_ORDER)).toList();
     }
     @Transactional(readOnly=true)
+    @ReadFromReplica
+    @Cacheable(cacheNames = PublicCacheNames.CATALOG, key = "'navigation'", sync = true)
     public List<NavigationCategory> navigation() {
         List<Category> all = sortedCategories();
         Map<Long, List<Category>> children = groupChildren(all);
@@ -73,6 +89,8 @@ public class CatalogService {
             .flatMap(Optional::stream).toList();
     }
     @Transactional(readOnly=true)
+    @ReadFromReplica
+    @Cacheable(cacheNames = PublicCacheNames.CATALOG, key = "'categories'", sync = true)
     public List<CategoryResponse> publicCategories() {
         List<Category> all = sortedCategories();
         Map<Long, List<Category>> children = groupChildren(all);
@@ -81,6 +99,12 @@ public class CatalogService {
         return result;
     }
     @Transactional(readOnly=true)
+    @ReadFromReplica
+    @Cacheable(
+        cacheNames = PublicCacheNames.CATALOG,
+        key = "T(com.builtbygrain.backend.performance.PublicCacheKeys).categoryPath(#rawPath)",
+        sync = true
+    )
     public CategoryPageResponse publicCategoryPage(String rawPath) {
         String path = rawPath == null ? "" : rawPath.strip().replaceAll("^/+|/+$", "");
         if (path.isBlank()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found");

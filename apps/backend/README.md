@@ -11,6 +11,8 @@ Spring Boot REST API for Built by Grain.
 - Spring Boot
 - Maven Wrapper
 - PostgreSQL
+- Redis cache (public catalog/storefront data only)
+- Optional PostgreSQL read-replica routing
 - REST over JSON
 
 PostgreSQL is used for local development. Flyway manages database migrations.
@@ -20,7 +22,7 @@ PostgreSQL is used for local development. Flyway manages database migrations.
 Prerequisites:
 
 - Java 21 active on `PATH` or through `JAVA_HOME`
-- PostgreSQL and a private S3-compatible object store (the Podman services are documented in `../../docs/setup.md`)
+- PostgreSQL, Redis, and a private S3-compatible object store (the Podman services are documented in `../../docs/setup.md`)
 
 Maven does not need to be installed globally. Use the committed Maven Wrapper.
 Start PostgreSQL first; see `../../docs/setup.md`.
@@ -43,7 +45,8 @@ The current password is required, the replacement must contain at least 12 chara
 and a successful change invalidates every active session for that administrator.
 
 Copy `../../.env.example` to the ignored `.env`, replace its placeholders, and run
-`just dev` from the repository root to start PostgreSQL and loopback-only MinIO.
+`just dev` from the repository root to start PostgreSQL, the disposable Redis cache,
+loopback-only MinIO, and the local mail catcher.
 
 The API starts on `http://localhost:8080`.
 

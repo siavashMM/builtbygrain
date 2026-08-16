@@ -38,20 +38,11 @@
 
         @if (selectedAddressId() === 'new') {
           <form class="checkout-form delivery-form" [formGroup]="addressForm" (ngSubmit)="continue()" novalidate>
-            <div class="address-search-panel">
-              <div><span aria-hidden="true">⌕</span><div><strong>Find your address faster</strong><small>Choose a suggestion to fill the fields, then check the details.</small></div></div>
-              <div id="checkout-address-autocomplete" class="address-autocomplete-host"></div>
-              @if (autocompleteStatus() === 'loading') { <p role="status">Loading address suggestions…</p> }
-              @if (autocompleteStatus() === 'unavailable') {
-                <p>Address suggestions are not configured. You can enter the address manually below.</p>
-              }
-            </div>
-            <div class="manual-divider"><span>Delivery details</span></div>
             <label>Full recipient name<input formControlName="recipientName" autocomplete="name"></label>
             <label>Company <span>(optional)</span><input formControlName="company" autocomplete="organization"></label>
             <div class="checkout-form-row street-row">
-              <label>Street<input formControlName="street" autocomplete="address-line1"></label>
-              <label>House number<input formControlName="houseNumber"></label>
+              <label>Street<app-address-autocomplete inputId="checkout-street" formControlName="street" (addressSelected)="applySuggestion($event)" /></label>
+              <label>House number<input id="checkout-house-number" formControlName="houseNumber"></label>
             </div>
             <label>Address line 2 <span>(optional)</span><input formControlName="addressLine2" autocomplete="address-line2"></label>
             <div class="checkout-form-row">

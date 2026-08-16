@@ -183,8 +183,8 @@
               <form class="account-form" [formGroup]="addressForm" (ngSubmit)="saveAddress()" novalidate>
                 <label>Recipient name<input formControlName="recipientName" autocomplete="name"></label>
                 <label>Company <span>(optional)</span><input formControlName="company" autocomplete="organization"></label>
-                <div class="form-row street-row"><label>Street<input formControlName="street" autocomplete="address-line1"></label><label>House number<input formControlName="houseNumber"></label></div>
-                <label>Address line 2 <span>(optional)</span><input formControlName="addressLine2" autocomplete="address-line2"></label>
+                <div class="form-row street-row"><label>Street<app-address-autocomplete inputId="account-street" formControlName="street" (addressSelected)="applyAddressSuggestion($event)" /></label><label>House number<input id="account-house-number" formControlName="houseNumber"></label></div>
+                <label>Address line 2 <span>(optional)</span><input id="account-address-line-2" formControlName="addressLine2" autocomplete="address-line2"></label>
                 <div class="form-row"><label>Postal code<input formControlName="postalCode" autocomplete="postal-code"></label><label>City<input formControlName="city" autocomplete="address-level2"></label></div>
                 <div class="form-row"><label>Region/state <span>(optional)</span><input formControlName="region" autocomplete="address-level1"></label><label>Country code<input formControlName="countryCode" maxlength="2" autocomplete="country"></label></div>
                 <label>Phone <span>(optional)</span><input type="tel" formControlName="phone" autocomplete="tel"></label>

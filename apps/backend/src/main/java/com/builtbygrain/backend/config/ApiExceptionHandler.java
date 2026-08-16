@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -74,6 +75,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<Map<String, Object>> integrityConflict(DataIntegrityViolationException exception) {
         return response(HttpStatus.CONFLICT, "The request conflicts with existing catalog data.");
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    ResponseEntity<Map<String, Object>> optimisticLockConflict(ObjectOptimisticLockingFailureException exception) {
+        return response(HttpStatus.CONFLICT, "The account was updated by another request. Please retry.");
     }
 
     @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})

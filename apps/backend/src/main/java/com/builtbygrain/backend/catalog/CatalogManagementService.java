@@ -8,12 +8,24 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import com.builtbygrain.backend.product.*;
+import com.builtbygrain.backend.performance.PublicCacheNames;
 
 @Service
+@CacheEvict(
+    cacheNames = {
+        PublicCacheNames.PRODUCT_CARDS,
+        PublicCacheNames.PRODUCT_DETAILS,
+        PublicCacheNames.CATALOG,
+        PublicCacheNames.STOREFRONT
+    },
+    allEntries = true,
+    condition = "@publicCacheInvalidationPolicy.isMutation(#root.method)"
+)
 public class CatalogManagementService {
     private final JdbcTemplate jdbc;
     private final ProductRepository products;

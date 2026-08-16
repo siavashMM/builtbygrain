@@ -54,7 +54,6 @@ type CategoryPageState = 'loading' | 'ready' | 'not-found' | 'error';
         <section class="category-products" aria-labelledby="category-products-title">
           <header>
             <h2 id="category-products-title">Pieces in this collection</h2>
-            <span>{{ current.products.length }} {{ current.products.length === 1 ? 'piece' : 'pieces' }}</span>
           </header>
           @if (current.products.length === 0) {
             <div class="home-state-panel category-products-empty">
@@ -62,7 +61,7 @@ type CategoryPageState = 'loading' | 'ready' | 'not-found' | 'error';
               <p>New work is taking shape. Please visit this collection again soon.</p>
             </div>
           } @else {
-            <div class="home-product-grid">
+            <div class="home-product-grid category-product-grid">
               @for (product of current.products; track product.id) { <app-product-card [product]="product" /> }
             </div>
           }

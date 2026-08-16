@@ -2,13 +2,28 @@ package com.builtbygrain.backend.product;
 
 import java.util.List;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.builtbygrain.backend.performance.PublicCacheNames;
+import com.builtbygrain.backend.performance.ReadFromReplica;
+
 @Service
+@CacheEvict(
+    cacheNames = {
+        PublicCacheNames.PRODUCT_CARDS,
+        PublicCacheNames.PRODUCT_DETAILS,
+        PublicCacheNames.CATALOG,
+        PublicCacheNames.STOREFRONT
+    },
+    allEntries = true,
+    condition = "@publicCacheInvalidationPolicy.isMutation(#root.method)"
+)
 public class ProductService {
 
     private static final int MAX_IMAGES_PER_PRODUCT = 8;
@@ -39,6 +54,8 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    @ReadFromReplica
+    @Cacheable(cacheNames = PublicCacheNames.PRODUCT_DETAILS, key = "#slug", sync = true)
     public ProductResponse getActiveProductBySlug(String slug) {
         return productRepository.findBySlugAndActiveTrue(slug)
             .map(this::response)

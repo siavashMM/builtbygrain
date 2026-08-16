@@ -53,6 +53,8 @@ describe('ShopCategoryPageComponent routing', () => {
     expect(Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.category-breadcrumbs a')).map(item => item.textContent?.trim()))
       .toEqual(['Home', 'Office', 'Desks']);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Oak standing desk');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.category-product-grid')).not.toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.category-products > header span')).toBeNull();
   });
 
   it('reuses the category component when switching routes without showing the homepage', async () => {

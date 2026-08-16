@@ -1,6 +1,6 @@
 # Local setup
 
-## PostgreSQL and object storage
+## PostgreSQL, Redis, and object storage
 
 Create an ignored local environment file, replace both credential placeholders, and start the loopback-bound services:
 
@@ -9,7 +9,11 @@ cp .env.example .env
 just dev
 ```
 
-PostgreSQL listens on `127.0.0.1:5432`; MinIO uses `127.0.0.1:9000` and its console uses `127.0.0.1:9001`. Runtime uploads belong in the private `builtbygrain-media` bucket.
+PostgreSQL listens on `127.0.0.1:5432`; the disposable Redis cache listens on
+`127.0.0.1:6379`; MinIO uses `127.0.0.1:9000` and its console uses
+`127.0.0.1:9001`. Runtime uploads belong in the private
+`builtbygrain-media` bucket. Redis is configured with a 256 MB memory limit,
+LRU eviction, and no persistence because PostgreSQL remains the source of truth.
 
 ## Backend
 
@@ -24,6 +28,59 @@ just backend
 Flyway owns catalog, Spring Session, throttling, and integrity schemas. A missing bootstrap username is created with a BCrypt password hash; no account is invented when the variables are absent.
 
 Deployments must activate the `prod` Spring profile. It forces secure admin cookies and disables development CORS origins unless exact origins are explicitly configured.
+
+### Public Redis cache
+
+`just dev` starts Redis automatically. It can also be managed separately:
+
+```bash
+just cache-up
+just cache-logs
+```
+
+The backend caches only public catalog/storefront DTOs. The default TTL is five
+minutes and the product-detail TTL is 30 seconds. Successful admin mutations evict
+the affected public cache regions after commit. If Redis is unavailable, public
+requests fall back to PostgreSQL rather than failing.
+
+Production should provide a private managed Redis endpoint:
+
+```bash
+export REDIS_URL='rediss://cache-user:password@cache.internal:6379'
+export CACHE_ENABLED=true
+export CACHE_DEFAULT_TTL=5m
+export CACHE_PRODUCT_DETAIL_TTL=30s
+export CACHE_KEY_PREFIX='builtbygrain:production:v1::'
+```
+
+Keep Redis off the public network and require TLS/authentication outside a trusted
+private network. Set `CACHE_ENABLED=false` to bypass caching during an incident.
+Do not store sessions, credentials, account responses, or other personalized data
+in these public cache regions. Use a distinct `CACHE_KEY_PREFIX` for each
+environment; bump its version when deploying a deliberately incompatible cache
+payload format.
+
+### Optional PostgreSQL read replica
+
+Local development uses only the primary. In production, provision PostgreSQL
+streaming replication separately, keep the replica private, apply Flyway migrations
+only through the primary, and then enable routing:
+
+```bash
+export READ_REPLICA_ENABLED=true
+export READ_REPLICA_URL='jdbc:postgresql://postgres-replica.internal:5432/builtbygrain'
+export READ_REPLICA_USERNAME='builtbygrain_reader'
+export READ_REPLICA_PASSWORD='use-a-secret-read-only-password'
+export READ_REPLICA_MAXIMUM_POOL_SIZE=10
+```
+
+The replica role should have `CONNECT`, schema `USAGE`, and `SELECT` only. Public
+catalog/storefront cache misses can use it; security, customer, admin, session,
+throttle, migration, and write operations continue to use the primary. Leave the
+feature disabled when replica health or lag is unacceptable. A failure to acquire
+a replica connection falls back to the primary. Enabling the feature without
+`READ_REPLICA_URL` intentionally stops startup instead of silently sending all
+replica traffic to the primary.
 
 ## Production HTTPS edge
 

@@ -16,6 +16,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
@@ -31,8 +33,20 @@ import com.builtbygrain.backend.product.Product;
 import com.builtbygrain.backend.product.ProductCardDto;
 import com.builtbygrain.backend.product.ProductCardService;
 import com.builtbygrain.backend.product.ProductRepository;
+import com.builtbygrain.backend.performance.PublicCacheNames;
+import com.builtbygrain.backend.performance.ReadFromReplica;
 
 @Service
+@CacheEvict(
+    cacheNames = {
+        PublicCacheNames.PRODUCT_CARDS,
+        PublicCacheNames.PRODUCT_DETAILS,
+        PublicCacheNames.CATALOG,
+        PublicCacheNames.STOREFRONT
+    },
+    allEntries = true,
+    condition = "@publicCacheInvalidationPolicy.isMutation(#root.method)"
+)
 public class StorefrontConfigurationService {
     public static final int MAX_FEATURED_PRODUCTS = 3;
 
@@ -233,6 +247,8 @@ public class StorefrontConfigurationService {
     }
 
     @Transactional(readOnly = true)
+    @ReadFromReplica
+    @Cacheable(cacheNames = PublicCacheNames.STOREFRONT, key = "'public'", sync = true)
     public PublicStorefrontDto publicStorefront() {
         List<GroupRow> rows = groupRows(true);
         Map<Long, List<Category>> categoriesByGroup = assignedCategoriesByGroup(rows);

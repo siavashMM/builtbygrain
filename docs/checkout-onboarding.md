@@ -50,7 +50,7 @@ Apple returns the authorization result with a cross-site form POST when name/ema
 
 ## Address recommendations
 
-The Delivery step always uses semantic `autocomplete` attributes, so browser-saved addresses work without an external API. Optional richer recommendations use Google’s current Place Autocomplete widget:
+The account **Add address** form and checkout **Delivery** step always use semantic `autocomplete` attributes, so browser-saved addresses work without an external API. Both flows share the same optional Google Place Autocomplete widget and address-component mapping:
 
 1. Enable **Maps JavaScript API** and **Places API (New)** in Google Cloud.
 2. Create a separate browser API key.
